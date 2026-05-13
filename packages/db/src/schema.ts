@@ -2,7 +2,6 @@ export interface Topic {
   id: number;
   keyword: string;
   email: string;
-  cronTime: string;
   active: number;
   createdAt: Date;
 }

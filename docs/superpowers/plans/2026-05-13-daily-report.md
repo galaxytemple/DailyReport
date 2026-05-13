@@ -3153,6 +3153,17 @@ Verification: `pnpm --filter @daily/crawler typecheck` PASS, `pnpm --filter @dai
 
 `raw_data.source` still uses the V1 CHECK constraint `('reddit','twitter','news')` — `'news'` covers both HN and curated blogs for now. A future V3 could split out `'hackernews'` if per-source weighting becomes useful.
 
+**2026-05-13 (cron_time dropped — single morning batch)** — Per-topic `cron_time` made no sense given that gemma2:9b on 4 OCPU ARM takes ~3 min/topic. A daily 9am inbox deadline implies starting at ~5am and processing all topics sequentially, not staggering per-topic. New model:
+
+| Severity | Change | What was built |
+|---|---|---|
+| HIGH | `topics.cron_time` column dropped. The table is now a pure catalog: id, keyword, email, active, created_at. | `db/migrations/V3__drop_cron_time.sql` |
+| HIGH | `Topic` interface drops `cronTime` field; crawler SELECT no longer projects `cron_time`. | `packages/db/src/schema.ts`, `apps/crawler/src/index.ts` |
+| MEDIUM | Job will be scheduled by a single global env var `JOB_CRON` (default `0 5 * * *`) instead of per-topic. To be wired up in Phase 3. | `.env.example` (new `JOB_CRON`) |
+| LOW | `docker-compose.yml` uncomments the `crawler` service — Phase 2 is now part of the active stack. | `docker/docker-compose.yml` |
+
+The operator must run `pnpm db:migrate` to apply V3 before deploying the new code (otherwise crawler SELECT will still reference the dropped column on freshly-pulled binaries… actually no, the new code doesn't reference cron_time, but the V3 migration is needed for data hygiene and to remove the NOT NULL constraint that would block `topics` INSERTs that omit cron_time). Operator action item recorded below.
+
 **Deferred (LOW, not blocking implementation):**
 - No retry/backoff helper around Ollama/SMTP/Reddit/Twitter calls yet; add `p-retry` (3 attempts, expo backoff) opportunistically during Phase 2/3 hardening.
 - Vector index `neighbor partitions 2` is left as-is for current low-volume case; revisit when topics > 20 or per-day rows per topic > 10k.

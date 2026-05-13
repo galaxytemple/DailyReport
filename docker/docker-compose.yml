@@ -58,29 +58,27 @@ services:
   #     start_period: 60s
   #   mem_limit: 512m
 
-  # ────────────────────────────────────────────────────────────────────────
-  # apps/crawler — hourly social/news fetch + embed. Uncomment after Phase 2.
-  # ────────────────────────────────────────────────────────────────────────
-  # crawler:
-  #   build:
-  #     context: ../
-  #     dockerfile: ./docker/crawler.Dockerfile
-  #   restart: unless-stopped
-  #   env_file: ../.env
-  #   environment:
-  #     ORACLE_WALLET_DIR: /wallet
-  #     OLLAMA_URL: http://host.docker.internal:11434
-  #   extra_hosts:
-  #     - "host.docker.internal:host-gateway"
-  #   volumes:
-  #     - ../wallet:/wallet:ro
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "node -e 'process.exit(0)'"]
-  #     interval: 60s
-  #     timeout: 5s
-  #     retries: 3
-  #     start_period: 15s
-  #   mem_limit: 256m
+  # apps/crawler — hourly social/news fetch + embed (Phase 2 — active).
+  crawler:
+    build:
+      context: ../
+      dockerfile: ./docker/crawler.Dockerfile
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      ORACLE_WALLET_DIR: /wallet
+      OLLAMA_URL: http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ../wallet:/wallet:ro
+    healthcheck:
+      test: ["CMD-SHELL", "node -e 'process.exit(0)'"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    mem_limit: 256m
 
   # ────────────────────────────────────────────────────────────────────────
   # apps/job — per-topic daily report (RAG + LLM + email). Uncomment after Phase 3.

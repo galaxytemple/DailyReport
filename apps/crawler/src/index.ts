@@ -11,13 +11,13 @@ import type { CrawledItem } from './types.js';
 async function loadActiveTopics(): Promise<Topic[]> {
   const conn = await getConnection();
   try {
-    const result = await conn.execute<[number, string, string, string, number]>(
-      `SELECT id, keyword, email, cron_time, active FROM topics WHERE active = 1`,
+    const result = await conn.execute<[number, string, string, number]>(
+      `SELECT id, keyword, email, active FROM topics WHERE active = 1`,
       [],
       { outFormat: oracledb.OUT_FORMAT_ARRAY },
     );
-    return (result.rows ?? []).map(([id, keyword, email, cronTime, active]) => ({
-      id, keyword, email, cronTime, active, createdAt: new Date(),
+    return (result.rows ?? []).map(([id, keyword, email, active]) => ({
+      id, keyword, email, active, createdAt: new Date(),
     }));
   } finally {
     await conn.close();
