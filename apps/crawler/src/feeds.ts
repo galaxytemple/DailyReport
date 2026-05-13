@@ -1,0 +1,18 @@
+export const RSS_FEEDS: ReadonlyArray<string> = [
+  'https://www.anthropic.com/news/rss.xml',
+  'https://openai.com/blog/rss/',
+  'https://simonwillison.net/atom/everything/',
+  'https://www.latent.space/feed',
+  'https://huggingface.co/blog/feed.xml',
+  'https://blog.replit.com/rss.xml',
+  'https://blog.cloudflare.com/rss/',
+  'https://stripe.com/blog/feed.rss',
+  'https://discord.com/blog/rss.xml',
+  'https://netflixtechblog.com/feed',
+  'https://eng.uber.com/feed/',
+  'https://engineering.fb.com/feed/',
+  'https://medium.com/feed/airbnb-engineering',
+  'https://www.pragmaticengineer.com/feed/',
+  'https://blog.bytebytego.com/feed',
+  'https://newsletter.systemdesign.one/feed',
+];

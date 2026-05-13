@@ -3136,6 +3136,23 @@ git commit -m "feat: GitHub Actions CI/CD — rsync + SSH deploy"
 | MEDIUM | Reddit test mock switched from `vi.mock('snoowrap', ...)` to `vi.stubGlobal('fetch', ...)`, with 5 assertions covering listing shape, URL construction, fallback to title, UA header, and HTTP error handling | Task 5 |
 | — | Supersedes review notes **H4** (snoowrap archived — moot, dropped) and **L3** (`REDDIT_USER_AGENT` env var is now the canonical config, no hardcoding) | — |
 
+**2026-05-13 (Phase 2 architecture pivot — built)** — During Phase 2 implementation the source mix was rethought based on (a) the user's actual topic interests (AI coding tools, system-design / coding-interview prep, plus some stocks — no Korean sources) and (b) external constraints (Twitter API monetized, Threads weak signal for tech). Final 3-source crawler:
+
+| Severity | Change | What was built |
+|---|---|---|
+| HIGH | **Twitter dropped entirely** — `agent-twitter-client` requires real-account login, ToS-violating, breaks every 2–3 months. Task 6 deleted in spirit; no `twitter.ts` shipped, `agent-twitter-client` not in `package.json`. | no file |
+| HIGH | **Yahoo Finance dropped** — finance-only signal not aligned with the user's broader tech/interview topics. `yahoo-finance2` not in `package.json`. | no file |
+| HIGH | **HackerNews Algolia search added** — `https://hn.algolia.com/api/v1/search`, no auth, no quota, filtered to last 24h `tags=story`. Best signal for AI tools / system design / interview content. | `apps/crawler/src/sources/hackernews.ts` (~50 LOC) |
+| HIGH | **Curated tech blog RSS replaces hardcoded finance RSS** — 16 feeds (Anthropic, OpenAI, Simon Willison, Latent Space, Cloudflare, Stripe, Discord, Netflix Tech, Pragmatic Engineer, Bytebytego, etc.). Pulls everything; the job-time vector search filters by topic. | `apps/crawler/src/feeds.ts` + `apps/crawler/src/sources/blogs.ts` |
+| MEDIUM | Reddit source kept (public `.json` from earlier follow-up). | `apps/crawler/src/sources/reddit.ts` |
+| MEDIUM | `CrawledItem` extracted to `apps/crawler/src/types.ts` — was previously co-located in `news.ts` and re-imported across sources. | `apps/crawler/src/types.ts` |
+| LOW | `apps/crawler/src/index.ts` orchestrates **3 sources in parallel** (`Promise.allSettled`), then **embeds + stores items serially** (4 OCPU host shares with Ollama; concurrent embedding thrashes KV cache). | `apps/crawler/src/index.ts` |
+| LOW | tsconfig `rootDir` removed (was conflicting with `@daily/db` path mapping); `noEmit: true` instead. Tests use `vi.hoisted()` for mock variables (vitest hoists `vi.mock` factories above declarations). | `apps/crawler/tsconfig.json`, all `__tests__/*.test.ts` |
+
+Verification: `pnpm --filter @daily/crawler typecheck` PASS, `pnpm --filter @daily/crawler test` → **5 files / 22 tests PASS**.
+
+`raw_data.source` still uses the V1 CHECK constraint `('reddit','twitter','news')` — `'news'` covers both HN and curated blogs for now. A future V3 could split out `'hackernews'` if per-source weighting becomes useful.
+
 **Deferred (LOW, not blocking implementation):**
 - No retry/backoff helper around Ollama/SMTP/Reddit/Twitter calls yet; add `p-retry` (3 attempts, expo backoff) opportunistically during Phase 2/3 hardening.
 - Vector index `neighbor partitions 2` is left as-is for current low-volume case; revisit when topics > 20 or per-day rows per topic > 10k.
