@@ -1,0 +1,19 @@
+# docker/docker-compose.yml — full file added in Phase 6; stub here for db:migrate
+#
+# share-pad parity: ORACLE_WALLET_DIR in .env must be `/wallet` (container path,
+# matching the volume mount below). flyway/flyway:10-alpine bundles Oracle PKI
+# so the wallet's cwallet.sso is readable without any JKS workaround — 11-alpine
+# drops Oracle PKI from its classpath, hence the version pin.
+services:
+  flyway:
+    image: flyway/flyway:10-alpine
+    profiles: ["tools"]
+    environment:
+      FLYWAY_URL: "jdbc:oracle:thin:@${ORACLE_TNS_NAME}?TNS_ADMIN=${ORACLE_WALLET_DIR}"
+      FLYWAY_USER: "${ORACLE_SCHEMA}"
+      FLYWAY_PASSWORD: "${ORACLE_SCHEMA_PASSWORD}"
+    volumes:
+      - ../db/migrations:/flyway/sql:ro
+      - ../db/flyway.conf:/flyway/conf/flyway.conf:ro
+      - ../wallet:/wallet:ro
+    command: ["-configFiles=/flyway/conf/flyway.conf", "info"]

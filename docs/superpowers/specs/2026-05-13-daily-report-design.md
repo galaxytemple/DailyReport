@@ -1,7 +1,7 @@
 # Daily Report — Design Spec
 
 **Date:** 2026-05-13
-**Status:** Approved
+**Status:** Approved (revised 2026-05-13 after plan review — see `docs/superpowers/reviews/2026-05-13-plan-review.md`)
 
 ---
 
@@ -123,7 +123,7 @@ ARCHIVED_SUMMARY (
 ### apps/crawler
 
 - **Schedule:** hourly cron per active topic
-- **Reddit:** `snoowrap` — subreddit keyword search
+- **Reddit:** public `.json` endpoint via `fetch` — no OAuth app needed (Reddit's 2024 Responsible Builder Policy gate is bypassed). Identified by unique `REDDIT_USER_AGENT`.
 - **Twitter/X:** `agent-twitter-client` — unofficial TypeScript scraper
 - **News:** `rss-parser` + `yahoo-finance2`
 - **Embedding:** Ollama `nomic-embed-text` model via HTTP → stored in `RAW_DATA.embedding`
@@ -133,7 +133,7 @@ ARCHIVED_SUMMARY (
 
 - **Schedule:** per-topic `cron_time` from `TOPICS` table
 - **RAG:** Oracle Vector Search (`VECTOR_DISTANCE`) to retrieve relevant `RAW_DATA` for the topic
-- **LLM:** Ollama HTTP API (`http://host.docker.internal:11434`) → Gemma 2 27B
+- **LLM:** Ollama HTTP API (`http://host.docker.internal:11434`) → Gemma 2 9B (Q4_K_M, ~6 GB resident)
 - **Output:** Markdown report saved to `DAILY_REPORTS`
 - **Email:** Nodemailer + OCI SMTP relay → sent to `TOPICS.email`
 
@@ -184,7 +184,16 @@ services:
 
 Models used:
 - `nomic-embed-text` — embeddings (crawler)
-- `gemma2:27b` — analysis and summarization (job, archivist)
+- `gemma2:9b` — analysis and summarization (job, archivist)
+
+**Hardware note (Ampere A1, 4 OCPU / 24 GB / no GPU):** `gemma2:27b` Q4_K_M needs ~16.65 GB resident and decodes at 1–2 tok/s on this CPU, which makes a daily-report cycle take ~20 min per topic. `gemma2:9b` Q4_K_M is ~6 GB and decodes at ~3–5 tok/s, putting a topic at 2–4 min. With containers already claiming ~7 GB (after the `job`/`archivist` `mem_limit` reductions noted in §6), this leaves ~10 GB headroom for the model + KV cache.
+
+**Ollama tuning on host (set in the systemd unit or `~/.ollama/config`):**
+- `OLLAMA_NUM_PARALLEL=1` — single in-flight request; concurrent inference on 4 ARM cores thrashes the KV cache.
+- `OLLAMA_MAX_LOADED_MODELS=1` — keep only one model resident at a time.
+- `OLLAMA_KEEP_ALIVE=24h` — avoid unload/reload between cron ticks.
+
+Per-topic and archivist runs should be serialized at the application layer (cron expressions spaced apart, archivist always at a quiet hour).
 
 ---
 

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Thin wrapper so pnpm scripts can call docker compose with the right env-file
+# and compose file without having to repeat flags everywhere.
+set -euo pipefail
+exec docker compose \
+  --project-name daily-report \
+  --env-file "$(dirname "$0")/../.env" \
+  -f "$(dirname "$0")/../docker/docker-compose.yml" \
+  "$@"
