@@ -1,0 +1,48 @@
+# docker/Caddyfile
+#
+# Caddy v2 reverse proxy + auto-HTTPS. {$PUBLIC_HOST} is substituted at startup
+# from the env var passed by docker-compose.yml (which reads it from .env).
+#
+# Auto-HTTPS via Let's Encrypt — no cert config needed, just:
+#   - port 443 open on the VM (OCI Security List + iptables)
+#   - DNS A record for {$PUBLIC_HOST} → VM public IP propagated
+
+{$PUBLIC_HOST} {
+	encode gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options    "nosniff"
+		X-Frame-Options           "DENY"
+		Referrer-Policy           "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# ────────────────────────────────────────────────────────────────────
+	# PHASE 6 PLACEHOLDER
+	# Once apps/web is built and the `web` service is uncommented in
+	# docker-compose.yml, replace this `respond` block with:
+	#     reverse_proxy web:3000
+	# ────────────────────────────────────────────────────────────────────
+	respond `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Daily Report</title>
+<style>
+  body { font-family: system-ui, -apple-system, sans-serif; max-width: 600px;
+         margin: 4rem auto; padding: 1rem; color: #333; line-height: 1.6; }
+  h1   { margin: 0 0 0.5rem; }
+  p    { color: #666; }
+  code { background: #f5f5f5; padding: 0.15rem 0.4rem; border-radius: 3px; }
+</style>
+</head>
+<body>
+<h1>Daily Report</h1>
+<p>Setup in progress — the web UI isn't deployed yet.</p>
+<p>If you're seeing this, CI/CD + TLS + DNS all work. <code>apps/web</code>
+will replace this page in a later phase.</p>
+</body>
+</html>` 200
+}

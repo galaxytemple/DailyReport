@@ -1,0 +1,120 @@
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          set -e
+          if [ -z "${DEPLOY_HOST:-}" ]; then echo "::error::DEPLOY_HOST secret is empty"; exit 1; fi
+          if [ -z "${DEPLOY_SSH_KEY:-}" ]; then echo "::error::DEPLOY_SSH_KEY secret is empty"; exit 1; fi
+
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+
+          if ! grep -q -- '-----BEGIN' ~/.ssh/deploy; then
+            echo "::error::DEPLOY_SSH_KEY does not look like a PEM private key"
+            exit 1
+          fi
+
+          echo "Runner public IP: $(curl -fsS https://api.ipify.org || echo unknown)"
+          nc -vz -w 5 "$DEPLOY_HOST" 22 2>&1 | sed 's/^/  /' || true
+
+          if ! ssh-keyscan -T 15 "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/tmp/keyscan.err; then
+            echo "::error::ssh-keyscan failed"; cat /tmp/keyscan.err; exit 1
+          fi
+
+      - name: Build .env
+        run: |
+          cat > .env <<EOF
+          PUBLIC_IP=${{ secrets.PUBLIC_IP }}
+          PUBLIC_HOST=${{ secrets.PUBLIC_HOST }}
+
+          ORACLE_USER=${{ secrets.ORACLE_USER }}
+          ORACLE_PASSWORD=${{ secrets.ORACLE_PASSWORD }}
+          ORACLE_TNS_NAME=${{ secrets.ORACLE_TNS_NAME }}
+          ORACLE_SCHEMA=${{ secrets.ORACLE_SCHEMA }}
+          ORACLE_SCHEMA_PASSWORD=${{ secrets.ORACLE_SCHEMA_PASSWORD }}
+          ORACLE_WALLET_DIR=/wallet
+          ORACLE_WALLET_PASSWORD=${{ secrets.ORACLE_WALLET_PASSWORD }}
+          ORACLE_TIMEZONE=${{ secrets.ORACLE_TIMEZONE }}
+
+          OLLAMA_URL=http://host.docker.internal:11434
+
+          ORACLE_SMTP_HOST=${{ secrets.ORACLE_SMTP_HOST }}
+          ORACLE_SMTP_PORT=587
+          ORACLE_SMTP_USER=${{ secrets.ORACLE_SMTP_USER }}
+          ORACLE_SMTP_PASS=${{ secrets.ORACLE_SMTP_PASS }}
+          SMTP_FROM=${{ secrets.SMTP_FROM }}
+
+          REDDIT_USER_AGENT=${{ secrets.REDDIT_USER_AGENT }}
+
+          AUTH_SECRET=${{ secrets.AUTH_SECRET }}
+          AUTH_GOOGLE_ID=${{ secrets.AUTH_GOOGLE_ID }}
+          AUTH_GOOGLE_SECRET=${{ secrets.AUTH_GOOGLE_SECRET }}
+          AUTH_TRUST_HOST=true
+          AUTH_URL=https://${{ secrets.PUBLIC_HOST }}
+          ADMIN_EMAILS=${{ secrets.ADMIN_EMAILS }}
+          EOF
+
+      - name: Sync to VM
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          rsync -az --delete \
+            --exclude='.git/' \
+            --exclude='node_modules/' \
+            --exclude='**/node_modules/' \
+            --exclude='.next/' \
+            --exclude='**/.next/' \
+            --exclude='wallet/' \
+            --exclude='data/' \
+            -e "ssh -i ~/.ssh/deploy" \
+            ./ "$DEPLOY_USER@$DEPLOY_HOST:/opt/daily-report/"
+
+          ssh -i ~/.ssh/deploy "$DEPLOY_USER@$DEPLOY_HOST" \
+            "chmod 600 /opt/daily-report/.env && chmod +x /opt/daily-report/scripts/dc"
+
+      - name: Build & restart
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          ssh -i ~/.ssh/deploy "$DEPLOY_USER@$DEPLOY_HOST" "set -euo pipefail
+            cd /opt/daily-report
+            ./scripts/dc up -d --build --remove-orphans
+            ./scripts/dc exec -T caddy caddy reload --config /etc/caddy/Caddyfile \
+              || ./scripts/dc restart caddy
+            docker image prune -f
+          "
+
+      - name: Health check
+        env:
+          PUBLIC_HOST: ${{ secrets.PUBLIC_HOST }}
+        run: |
+          for i in 1 2 3 4 5; do
+            if curl -fsS --max-time 10 "https://${PUBLIC_HOST}/" >/dev/null; then
+              echo "✓ healthy"; exit 0
+            fi
+            sleep 8
+          done
+          echo "::warning::homepage did not respond within 40s"
