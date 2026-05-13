@@ -20,6 +20,7 @@ export interface RawData {
 export interface DailyReport {
   id: number;
   topicId: number;
+  theme: string | null;
   content: string | null;
   sentAt: Date | null;
   createdAt: Date;

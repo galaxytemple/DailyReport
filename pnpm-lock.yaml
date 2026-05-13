@@ -53,6 +53,37 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@22.19.19)
 
+  apps/job:
+    dependencies:
+      '@daily/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      node-cron:
+        specifier: ^4.0.0
+        version: 4.2.1
+      nodemailer:
+        specifier: ^6.9.0
+        version: 6.10.1
+      ollama:
+        specifier: ^0.5.0
+        version: 0.5.18
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.19
+      '@types/nodemailer':
+        specifier: ^6.4.0
+        version: 6.4.23
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.19.19)
+
   packages/db:
     dependencies:
       oracledb:

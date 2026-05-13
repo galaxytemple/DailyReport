@@ -3164,6 +3164,58 @@ Verification: `pnpm --filter @daily/crawler typecheck` PASS, `pnpm --filter @dai
 
 The operator must run `pnpm db:migrate` to apply V3 before deploying the new code (otherwise crawler SELECT will still reference the dropped column on freshly-pulled binaries… actually no, the new code doesn't reference cron_time, but the V3 migration is needed for data hygiene and to remove the NOT NULL constraint that would block `topics` INSERTs that omit cron_time). Operator action item recorded below.
 
+**2026-05-13 (planned — crawler health dashboard)** — Per-source observability so the operator can see whether the most recent hourly tick succeeded for each source. NOT YET BUILT — captured here as design for the eventual web admin page.
+
+Design sketch:
+
+```sql
+-- V5 (planned)
+CREATE TABLE crawler_runs (
+  id           NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  ran_at       TIMESTAMP DEFAULT SYSTIMESTAMP NOT NULL,
+  source       VARCHAR2(50) NOT NULL,  -- 'hackernews' | 'reddit' | 'blogs'
+  topic_id     NUMBER REFERENCES topics(id),  -- NULL for blogs (not topic-scoped)
+  status       VARCHAR2(20) NOT NULL CHECK (status IN ('ok','failed','empty')),
+  items_count  NUMBER DEFAULT 0,
+  duration_ms  NUMBER,
+  error_msg    VARCHAR2(500)
+);
+CREATE INDEX crawler_runs_ran_at_idx ON crawler_runs (ran_at DESC);
+```
+
+Crawler instrumentation:
+- Wrap each `fetchHackerNews(topic)`, `fetchReddit(topic)`, `fetchBlogs()` call with timing + try/catch
+- Insert one `crawler_runs` row per call (one per source × topic × hourly tick)
+- Truncate old rows older than ~7 days during archivist purge
+
+Web admin page (`/health` or part of `/dashboard`):
+- Table grouped by source, showing the **most recent hour's** run per (source, topic) tuple
+- Columns: source, topic_keyword, status (✓ / ✗ / —), items_count, duration_ms, ran_at
+- Refresh every 5 min via `revalidate = 300`
+- For `source='blogs'` (single global run per hour), one summary row with the per-feed success ratio in `error_msg`
+
+Operator value: at-a-glance answer to "did this morning's crawl actually pull anything from HN for topic X?" without SSHing into the VM to read logs.
+
+**2026-05-13 (Phase 3 built — cluster-aware job)** — Per-topic LLM calls would waste prefill on every topic. Instead, an LLM clustering step at the start groups related topics into thematic clusters; each cluster yields ONE unified report and ONE email. Fewer LLM calls, more coherent reports, cleaner inbox.
+
+| Severity | Change | What was built |
+|---|---|---|
+| HIGH | `V4__add_theme_to_reports.sql` — adds `theme VARCHAR2(200)` to `daily_reports`. Nullable for migration safety. | `db/migrations/V4__add_theme_to_reports.sql` |
+| HIGH | `DailyReport` interface gains `theme: string \| null`. | `packages/db/src/schema.ts` |
+| HIGH | **Topic clustering** — `cluster.ts` sends all active topic names to `gemma2:9b` with a strict JSON-only instruction, parses to `[{theme, topicIds[]}]`, validates ids, falls back to singleton clusters on parse failure (2 attempts). Skips LLM entirely for ≤1 topic. Strips ` ```json ` fences. Treats topics as DATA. | `apps/job/src/cluster.ts` |
+| HIGH | **Cluster-aware RAG** — `rag.ts retrieveContextForCluster` embeds each topic's keyword, unions vector-search results across the cluster, dedupes by URL, caps at 30 passages total (configurable). Stays in today's `raw_data` window only. | `apps/job/src/rag.ts` |
+| HIGH | **Cluster analysis** — `analyze.ts` builds a system prompt naming theme/topics/passages as DATA, sanitises keywords (no newlines, 200-char cap), asks for per-topic ## sections + a `Cross-topic signals` section, ~800 word target. Skips empty topics rather than padding. | `apps/job/src/analyze.ts` |
+| MEDIUM | `report.ts` stores `(topic_id, theme, content)` with `topic_id = first topic in cluster` as representative. CLOB-bound content, theme capped at 200 chars. `markSent` updates `sent_at`. | `apps/job/src/report.ts` |
+| MEDIUM | `email.ts` — Gmail SMTP send via nodemailer, recipients = `Array.from(new Set(topics.map(t => t.email)))` so each unique address gets one email per cluster. Subject: `[Daily Report] <theme> — YYYY-MM-DD`. HTML body is the markdown content wrapped in `<pre>` for readability. | `apps/job/src/email.ts` |
+| MEDIUM | `index.ts` orchestrator — single `JOB_CRON` env (default `0 5 * * *`), validates expression, registers one cron. On tick: load active topics → cluster → for each cluster → retrieve → analyze → save → send → mark sent. Cluster failures are isolated (try/catch per cluster). | `apps/job/src/index.ts` |
+| LOW | `docker-compose.yml` uncomments the `job` service — Phase 3 part of the active stack. | `docker/docker-compose.yml` |
+
+Verification: `pnpm --filter @daily/job typecheck` PASS, `pnpm --filter @daily/job test` → **4 files / 17 tests PASS**.
+
+Operator action: run `pnpm db:migrate` to apply V4 before deploying.
+
+Schema note: `daily_reports.topic_id` is still NOT NULL and points at the cluster's first topic; the full cluster membership is recoverable only by re-running clustering or storing it elsewhere. Acceptable for personal scale; a `report_topics` join table can come later if past-cluster reconstruction matters.
+
 **Deferred (LOW, not blocking implementation):**
 - No retry/backoff helper around Ollama/SMTP/Reddit/Twitter calls yet; add `p-retry` (3 attempts, expo backoff) opportunistically during Phase 2/3 hardening.
 - Vector index `neighbor partitions 2` is left as-is for current low-volume case; revisit when topics > 20 or per-day rows per topic > 10k.

@@ -80,31 +80,28 @@ services:
       start_period: 15s
     mem_limit: 256m
 
-  # ────────────────────────────────────────────────────────────────────────
-  # apps/job — per-topic daily report (RAG + LLM + email). Uncomment after Phase 3.
-  # mem_limit kept modest because the heavy lifting (gemma2:9b inference) runs
-  # on the host's Ollama, not inside this container.
-  # ────────────────────────────────────────────────────────────────────────
-  # job:
-  #   build:
-  #     context: ../
-  #     dockerfile: ./docker/job.Dockerfile
-  #   restart: unless-stopped
-  #   env_file: ../.env
-  #   environment:
-  #     ORACLE_WALLET_DIR: /wallet
-  #     OLLAMA_URL: http://host.docker.internal:11434
-  #   extra_hosts:
-  #     - "host.docker.internal:host-gateway"
-  #   volumes:
-  #     - ../wallet:/wallet:ro
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "node -e 'process.exit(0)'"]
-  #     interval: 60s
-  #     timeout: 5s
-  #     retries: 3
-  #     start_period: 15s
-  #   mem_limit: 1536m
+  # apps/job — cluster-aware daily report (Phase 3 — active).
+  # mem_limit modest because gemma2:9b runs in host Ollama, not in this container.
+  job:
+    build:
+      context: ../
+      dockerfile: ./docker/job.Dockerfile
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      ORACLE_WALLET_DIR: /wallet
+      OLLAMA_URL: http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ../wallet:/wallet:ro
+    healthcheck:
+      test: ["CMD-SHELL", "node -e 'process.exit(0)'"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    mem_limit: 1536m
 
   # ────────────────────────────────────────────────────────────────────────
   # apps/archivist — nightly summarise + purge. Uncomment after Phase 4.
