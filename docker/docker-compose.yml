@@ -39,6 +39,7 @@ services:
     env_file: ../.env
     environment:
       ORACLE_WALLET_DIR: /wallet
+      TZ: America/Los_Angeles
     volumes:
       - ../wallet:/wallet:ro
     healthcheck:
@@ -63,6 +64,7 @@ services:
     environment:
       ORACLE_WALLET_DIR: /wallet
       OLLAMA_URL: http://host.docker.internal:11434
+      TZ: America/Los_Angeles
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -87,6 +89,7 @@ services:
     environment:
       ORACLE_WALLET_DIR: /wallet
       OLLAMA_URL: http://host.docker.internal:11434
+      TZ: America/Los_Angeles
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -110,6 +113,7 @@ services:
     environment:
       ORACLE_WALLET_DIR: /wallet
       OLLAMA_URL: http://host.docker.internal:11434
+      TZ: America/Los_Angeles
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

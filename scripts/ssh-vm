@@ -9,7 +9,7 @@
 # Override defaults via env: SSH_KEY, VM_HOST, VM_USER.
 set -euo pipefail
 
-KEY="${SSH_KEY:-$HOME/Documents/workspace/daily-report/ssh-key-2026-05-03.key}"
+KEY="${SSH_KEY:-/Users/temple/2fa/oracle/ssh-key-2026-05-03.key}"
 USER="${VM_USER:-ubuntu}"
 HOST="${VM_HOST:-159.54.160.137}"
 

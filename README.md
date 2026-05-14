@@ -13,7 +13,7 @@ Live: <https://159-54-160-137.sslip.io>
 ```
 apps/
 ├── crawler/        # hourly: HN (per topic) + RSS (global pool) → embed → raw_data
-├── job/            # JOB_CRON (default 5am): per-theme RAG → LLM → email recipients
+├── job/            # JOB_CRON (default 5am LA): per-theme RAG → LLM → email recipients
 ├── archivist/      # daily 03:00: top-10 summarise yesterday + purge raw_data
 └── web/            # Next.js 16 + Auth.js admin UI (themes/topics/dashboard/reports)
 packages/
@@ -81,7 +81,7 @@ archived_summary (id, topic_id FK, report_date, rank, ...)
 ## Architecture decisions worth knowing
 
 - **`gemma2:9b` on host Ollama** (not 27b — too slow on 4 OCPU ARM). Bind to `0.0.0.0:11434` via systemd override; iptables ACCEPT on 11434
-- **Single `JOB_CRON`** (default `0 5 * * *`). User-defined themes ARE the grouping — no LLM topic clustering (dropped in V5 refactor)
+- **Single `JOB_CRON`** (default `0 5 * * *`, interpreted in container `TZ=America/Los_Angeles` set by compose — DST-aware). User-defined themes ARE the grouping — no LLM topic clustering (dropped in V5 refactor)
 - **Sources**: HackerNews API (keyword-filtered per topic) + RSS feeds (global pool: 38 blog feeds + 12 subreddit RSS). Reddit JSON API removed — 403s from cloud IPs and OAuth is gated behind their 2024 Responsible Builder Policy
 - **`ORACLE_WALLET_DIR=/wallet`** in `.env` is the container path (matches share-pad). Local dev outside Docker overrides per-shell
 - **`flyway/flyway:10-alpine`** is pinned — 11-alpine and later dropped Oracle PKI (needed for `cwallet.sso`)
