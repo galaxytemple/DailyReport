@@ -15,4 +15,6 @@ COPY tsconfig.base.json ./
 COPY packages/db/src ./packages/db/src
 COPY apps/job/src ./apps/job/src
 
-CMD ["pnpm", "--filter", "@daily/job", "start"]
+# Bypass pnpm so TTY reaches Node's stdout (see crawler.Dockerfile).
+WORKDIR /app/apps/job
+CMD ["node", "--import", "tsx", "src/index.ts"]

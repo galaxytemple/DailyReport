@@ -15,4 +15,9 @@ COPY tsconfig.base.json ./
 COPY packages/db/src ./packages/db/src
 COPY apps/crawler/src ./apps/crawler/src
 
-CMD ["pnpm", "--filter", "@daily/crawler", "start"]
+# Run tsx directly (no pnpm wrapper) so this becomes PID 1 and docker's TTY
+# allocation actually reaches Node's stdout. With pnpm in the middle, child
+# stdout gets re-piped through pnpm's own streams and stays block-buffered
+# regardless of `tty: true` on the container.
+WORKDIR /app/apps/crawler
+CMD ["node", "--import", "tsx", "src/index.ts"]

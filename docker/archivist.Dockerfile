@@ -15,4 +15,6 @@ COPY tsconfig.base.json ./
 COPY packages/db/src ./packages/db/src
 COPY apps/archivist/src ./apps/archivist/src
 
-CMD ["pnpm", "--filter", "@daily/archivist", "start"]
+# Bypass pnpm so TTY reaches Node's stdout (see crawler.Dockerfile).
+WORKDIR /app/apps/archivist
+CMD ["node", "--import", "tsx", "src/index.ts"]
