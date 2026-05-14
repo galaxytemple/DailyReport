@@ -43,10 +43,10 @@ services:
       - ../wallet:/wallet:ro
     healthcheck:
       test: ["CMD-SHELL", "node -e \"require('net').connect({host:'127.0.0.1',port:3000}).on('connect',function(){this.end();process.exit(0)}).on('error',function(){process.exit(1)})\""]
-      interval: 30s
+      interval: 15s
       timeout: 5s
-      retries: 5
-      start_period: 60s
+      retries: 10
+      start_period: 120s
     mem_limit: 512m
 
   # apps/crawler — hourly social/news fetch + embed (Phase 2 — active).

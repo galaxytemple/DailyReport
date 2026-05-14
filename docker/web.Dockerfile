@@ -25,6 +25,11 @@ RUN pnpm --filter @daily/web build
 
 FROM base AS runner
 ENV NODE_ENV=production
+# Next.js standalone server.js reads PORT and HOSTNAME from env. Without
+# HOSTNAME=0.0.0.0 the server may bind in a way the in-container healthcheck
+# (TCP connect to 127.0.0.1) can't reach.
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
 COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /app/apps/web/public ./apps/web/public
