@@ -13,7 +13,6 @@ export const RSS_FEEDS: ReadonlyArray<string> = [
   'https://slack.engineering/feed/',
   'https://blog.google/technology/ai/rss/',
   'https://stackoverflow.blog/feed/',
-  'https://www.dropbox.tech/feed',
   'https://medium.com/feed/pinterest-engineering',
   'https://engineering.atspotify.com/feed/',
   'https://techcrunch.com/category/artificial-intelligence/feed/',
@@ -39,4 +38,7 @@ export const RSS_FEEDS: ReadonlyArray<string> = [
   'https://marginalrevolution.com/feed',
   'https://www.netinterest.co/feed',
   'https://moontower.substack.com/feed',
+  'https://www.investing.com/rss/news_95.rss',
+  'https://econbrowser.com/feed',
+  'https://thelongview.substack.com/feed',
 ];
