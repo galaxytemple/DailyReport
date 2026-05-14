@@ -40,10 +40,18 @@ export async function getConnection(): Promise<oracledb.Connection> {
 
 export { oracledb };
 
+export interface Theme {
+  id: number;
+  name: string;
+  emails: string;
+  active: number;
+  createdAt: Date;
+}
+
 export interface Topic {
   id: number;
+  themeId: number;
   keyword: string;
-  email: string;
   active: number;
   createdAt: Date;
 }
@@ -61,7 +69,7 @@ export interface RawData {
 
 export interface DailyReport {
   id: number;
-  topicId: number;
+  themeId: number;
   theme: string | null;
   content: string | null;
   sentAt: Date | null;
