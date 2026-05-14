@@ -94,6 +94,17 @@ jobs:
           ssh -i ~/.ssh/deploy "$DEPLOY_USER@$DEPLOY_HOST" \
             "chmod 600 /opt/daily-report/.env && chmod +x /opt/daily-report/scripts/dc"
 
+      - name: DB migrate
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          ssh -i ~/.ssh/deploy "$DEPLOY_USER@$DEPLOY_HOST" "set -euo pipefail
+            cd /opt/daily-report
+            ./scripts/dc --profile tools run --rm flyway \
+              -configFiles=/flyway/conf/flyway.conf migrate
+          "
+
       - name: Build & restart
         env:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
@@ -102,10 +113,24 @@ jobs:
           ssh -i ~/.ssh/deploy "$DEPLOY_USER@$DEPLOY_HOST" "set -euo pipefail
             cd /opt/daily-report
             ./scripts/dc up -d --build --remove-orphans
-            ./scripts/dc exec -T caddy caddy reload --config /etc/caddy/Caddyfile \
-              || ./scripts/dc restart caddy
             docker image prune -f
           "
+
+      # Caddy reload runs unconditionally so a Caddyfile change still takes
+      # effect even if 'Build & restart' partially failed (e.g. web temporarily
+      # unhealthy). Validate first; reload via SIGHUP (caddy's supported reload
+      # signal); fall back to restart only if reload genuinely failed.
+      - name: Caddy reload
+        if: always()
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          ssh -i ~/.ssh/deploy "$DEPLOY_USER@$DEPLOY_HOST" "
+            cd /opt/daily-report
+            ./scripts/dc exec -T caddy caddy validate --config /etc/caddy/Caddyfile
+            ./scripts/dc kill -s HUP caddy || ./scripts/dc restart caddy
+          " || echo '::warning::caddy reload step failed'
 
       - name: Health check
         env:
