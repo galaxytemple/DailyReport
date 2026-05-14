@@ -1,7 +1,10 @@
 # Next.js 16 standalone build for apps/web.
 # Multi-stage to keep the runtime image small (~150 MB).
 FROM node:22-alpine AS base
-RUN corepack enable
+# Pin pnpm explicitly — `corepack enable` alone makes corepack fetch
+# `latest` (pnpm 11+) the first time it's invoked, which then errors
+# because the workspace was authored against pnpm 9.
+RUN corepack enable && corepack prepare pnpm@9.12.0 --activate
 WORKDIR /app
 
 FROM base AS deps
@@ -10,10 +13,10 @@ COPY packages/db/package.json ./packages/db/
 COPY apps/web/package.json ./apps/web/
 RUN pnpm install --frozen-lockfile
 
-FROM base AS builder
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages/db/node_modules ./packages/db/node_modules
-COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
+# Inherit the manifests + node_modules from `deps` so pnpm has a workspace
+# root to operate from. Without this, `pnpm --filter` errors with
+# ERR_PNPM_NO_PKG_MANIFEST because /app/package.json doesn't exist.
+FROM deps AS builder
 COPY tsconfig.base.json ./
 COPY packages/db/src ./packages/db/src
 COPY apps/web ./apps/web

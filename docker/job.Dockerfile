@@ -1,7 +1,9 @@
 # Node 22 + pnpm + tsx for apps/job.
 # Reaches Ollama on host via host.docker.internal:11434 (configured in compose).
 FROM node:22-alpine
-RUN corepack enable
+# Pin pnpm — bare `corepack enable` makes corepack fetch latest (pnpm 11+)
+# which then errors on this pnpm@9 workspace.
+RUN corepack enable && corepack prepare pnpm@9.12.0 --activate
 WORKDIR /app
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
