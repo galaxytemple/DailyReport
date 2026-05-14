@@ -20,7 +20,6 @@ export const RSS_FEEDS: ReadonlyArray<string> = [
   'https://magazine.sebastianraschka.com/feed',
   'https://www.federalreserve.gov/feeds/press_all.xml',
   'https://www.federalreserve.gov/feeds/speeches.xml',
-  'https://home.treasury.gov/news/feed',
   'https://www.sec.gov/news/pressreleases.rss',
   'https://feeds.marketwatch.com/marketwatch/topstories/',
   'https://www.cnbc.com/id/100003114/device/rss/rss.html',
