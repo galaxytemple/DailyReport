@@ -55,6 +55,10 @@ services:
       context: ../
       dockerfile: ./docker/crawler.Dockerfile
     restart: unless-stopped
+    # tty:true makes Node detect a TTY and switch stdout from block-buffered to
+    # line-buffered. Without this, `pnpm start` → tsx → console.log gets stuck
+    # in an 8 KB pipe buffer and `docker logs` shows nothing for hours.
+    tty: true
     env_file: ../.env
     environment:
       ORACLE_WALLET_DIR: /wallet
@@ -78,6 +82,7 @@ services:
       context: ../
       dockerfile: ./docker/job.Dockerfile
     restart: unless-stopped
+    tty: true
     env_file: ../.env
     environment:
       ORACLE_WALLET_DIR: /wallet
@@ -100,6 +105,7 @@ services:
       context: ../
       dockerfile: ./docker/archivist.Dockerfile
     restart: unless-stopped
+    tty: true
     env_file: ../.env
     environment:
       ORACLE_WALLET_DIR: /wallet
