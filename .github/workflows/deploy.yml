@@ -94,16 +94,12 @@ jobs:
           ssh -i ~/.ssh/deploy "$DEPLOY_USER@$DEPLOY_HOST" \
             "chmod 600 /opt/daily-report/.env && chmod +x /opt/daily-report/scripts/dc"
 
-      - name: DB migrate
-        env:
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-        run: |
-          ssh -i ~/.ssh/deploy "$DEPLOY_USER@$DEPLOY_HOST" "set -euo pipefail
-            cd /opt/daily-report
-            ./scripts/dc --profile tools run --rm flyway \
-              -configFiles=/flyway/conf/flyway.conf migrate
-          "
+      # Migrations are NOT auto-run on deploy. `flyway/flyway:10-alpine` is
+      # AMD64-only — runs fine on the dev Mac (Docker Desktop transparently
+      # uses qemu) but fails with `exec format error` on the OCI ARM A1 VM.
+      # Workflow: when a new V*.sql lands, run `pnpm db:migrate` locally
+      # against prod (`.env` points at OCI ADB), then push. See plan
+      # Revision Log + flyway-alpine-pin memory.
 
       - name: Build & restart
         env:
