@@ -12,8 +12,6 @@ export const RSS_FEEDS: ReadonlyArray<string> = [
   'https://github.blog/feed/',
   'https://slack.engineering/feed/',
   'https://www.federalreserve.gov/feeds/press_all.xml',
-  'https://www.bls.gov/feed/news_release/cpi.rss',
   'https://feeds.marketwatch.com/marketwatch/topstories/',
   'https://www.cnbc.com/id/100003114/device/rss/rss.html',
-  'https://feeds.finance.yahoo.com/rss/2.0/headline',
 ];
