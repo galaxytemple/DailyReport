@@ -3216,6 +3216,15 @@ Operator action: run `pnpm db:migrate` to apply V4 before deploying.
 
 Schema note: `daily_reports.topic_id` is still NOT NULL and points at the cluster's first topic; the full cluster membership is recoverable only by re-running clustering or storing it elsewhere. Acceptable for personal scale; a `report_topics` join table can come later if past-cluster reconstruction matters.
 
+**2026-05-13 (RSS curation passes — built)** — During Phase 2 deploy, the initial 16-feed list was probed from the OCI VM; ~6 URLs were dead (404/403/SSL). Iterated four curl-verify passes (commits `53e50ae` → `9dd7bc2`) ending at 41 verified feeds covering AI/tech + US macro/stocks + interview content. Dropped: Anthropic (no RSS), OpenAI (retired RSS), Replit, snoowrap-style Reddit (replaced earlier), Netflix Tech (cert chain), eng.uber.com (URL gone), www.pragmaticengineer.com (use `newsletter.*`), BLS CPI (403), Yahoo Finance headline (429), dropbox.tech (403), home.treasury.gov (404). Final list lives in `apps/crawler/src/feeds.ts`.
+
+**2026-05-13 (article-body fallback — built, commit `b366872`)** — Many feeds (Hugging Face, Latent Space, Discord) ship 1–2 sentence snippets in RSS — useless for embedding quality. Added `fetchArticleBody(url)` using `fetch` + `cheerio` that fires when RSS `contentSnippet < 500` chars: tries `article`, `main`, `[role="main"]`, `.post-content`, `.entry-content`, then `body` as fallback; strips `script/style/nav/header/footer/aside/form/iframe`. Caps result at 8000 chars. Browser-like UA on both RSS parser and the follow-up fetch (some feeds 403 non-browser UAs). Capped per-feed items at `MAX_ITEMS_PER_FEED = 20`.
+
+**2026-05-13 (helper scripts catalog)** — Three local helper scripts added during this session, not part of any phase:
+- `scripts/db-smoke-test.ts` — connects as `ORACLE_USER`, SELECT COUNTs the 4 tables. `pnpm db:smoke`. Also supports `--as-schema` flag (or `pnpm db:smoke:schema`) for DDL-owner connection.
+- `scripts/db-probe.ts` — 8-scenario bisect (standalone vs pool vs sessionCallback vs poolMin combos). How we caught the oracledb 6.10 Thin-mode `sessionCallback` hang.
+- `scripts/send-test-report.ts` — DB row counts → composed email via Gmail SMTP. `pnpm mail:test`. End-to-end DB-and-SMTP smoke before `apps/job` was built.
+
 **Deferred (LOW, not blocking implementation):**
 - No retry/backoff helper around Ollama/SMTP/Reddit/Twitter calls yet; add `p-retry` (3 attempts, expo backoff) opportunistically during Phase 2/3 hardening.
 - Vector index `neighbor partitions 2` is left as-is for current low-volume case; revisit when topics > 20 or per-day rows per topic > 10k.

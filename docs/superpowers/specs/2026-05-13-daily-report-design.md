@@ -18,17 +18,19 @@ pnpm monorepo modeled after the share-pad project.
 ```
 daily-report/
 ├── apps/
-│   ├── web/          # Next.js 16 — Topic Manager UI, Auth.js Google OAuth
-│   ├── crawler/      # Node.js cron — Reddit + Twitter/X + News collection
-│   ├── job/          # Node.js cron — Ollama RAG analysis + OCI SMTP email
-│   └── archivist/    # Node.js cron — DB cleanup and summarization
+│   ├── web/          # Next.js 16 — Topic Manager UI, Auth.js Google OAuth (Phase 5, pending)
+│   ├── crawler/      # Node.js cron — HN + Reddit (.json) + 41 curated RSS feeds
+│   ├── job/          # Node.js cron — cluster-aware RAG analysis + Gmail SMTP email
+│   └── archivist/    # Node.js cron — DB cleanup and summarization (Phase 4, pending)
 ├── packages/
 │   └── db/           # Shared oracledb connection pool + types
 ├── db/
 │   ├── flyway.conf
 │   └── migrations/
 │       ├── V1__initial_schema.sql
-│       └── V2__vector_index.sql
+│       ├── V2__vector_index.sql
+│       ├── V3__drop_cron_time.sql
+│       └── V4__add_theme_to_reports.sql
 ├── docker/
 │   ├── docker-compose.yml
 │   ├── Caddyfile
@@ -60,12 +62,12 @@ Migrations are run **manually from the terminal** via `pnpm db:migrate`. CI neve
 ### Tables
 
 ```sql
--- User-defined topics with notification settings
+-- User-defined topics (what to crawl + who to email). One global JOB_CRON env
+-- triggers all topics in one batch — per-topic cron_time was dropped in V3.
 TOPICS (
   id          NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   keyword     VARCHAR2(500)  NOT NULL,
   email       VARCHAR2(255)  NOT NULL,
-  cron_time   VARCHAR2(50)   NOT NULL,   -- e.g. "0 7 * * *"
   active      NUMBER(1)      DEFAULT 1,
   created_at  TIMESTAMP      DEFAULT SYSTIMESTAMP
 )
@@ -83,10 +85,13 @@ RAW_DATA (
   created_at  TIMESTAMP      DEFAULT SYSTIMESTAMP
 )
 
--- LLM-generated reports (content purged after 90 days, metadata kept)
+-- LLM-generated reports — one row per cluster (cluster-aware job).
+-- topic_id is "first topic in cluster" as representative pointer;
+-- theme is the LLM-generated cluster name. Content nulled after 90 days.
 DAILY_REPORTS (
   id          NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   topic_id    NUMBER         REFERENCES TOPICS(id),
+  theme       VARCHAR2(200),
   content     CLOB,                      -- Markdown; nulled after 90 days
   sent_at     TIMESTAMP,
   created_at  TIMESTAMP      DEFAULT SYSTIMESTAMP
@@ -122,20 +127,22 @@ ARCHIVED_SUMMARY (
 
 ### apps/crawler
 
-- **Schedule:** hourly cron per active topic
-- **Reddit:** public `.json` endpoint via `fetch` — no OAuth app needed (Reddit's 2024 Responsible Builder Policy gate is bypassed). Identified by unique `REDDIT_USER_AGENT`.
-- **Twitter/X:** `agent-twitter-client` — unofficial TypeScript scraper
-- **News:** `rss-parser` + `yahoo-finance2`
-- **Embedding:** Ollama `nomic-embed-text` model via HTTP → stored in `RAW_DATA.embedding`
-- **Dedup:** skip rows where `url` already exists for the same `topic_id` + date
+- **Schedule:** single hourly cron (`0 * * * *`) — all active topics processed sequentially per tick
+- **Sources (3):**
+  - **HackerNews:** Algolia search API — `https://hn.algolia.com/api/v1/search` — keyword-scoped, last 24h, no auth, no quota
+  - **Reddit:** public `.json` endpoint via `fetch` — no OAuth app needed (bypasses Reddit's 2024 Responsible Builder Policy gate). Identified by unique `REDDIT_USER_AGENT`. NOTE: cloud egress (OCI/AWS/GCP) is often 403-blocked.
+  - **Blogs:** 41 curated RSS feeds (AI/tech engineering + US macro/stocks + interview/system-design) via `rss-parser`. List lives in `apps/crawler/src/feeds.ts`.
+- **Article-body fallback:** when RSS snippet < 500 chars, follow `entry.link`, extract main text via `cheerio` (`article > main > .post-content > body`). Cap at 8000 chars.
+- **Embedding:** Ollama `nomic-embed-text` model via HTTP → 768-dim `VECTOR(768, FLOAT32)` in `RAW_DATA.embedding`
+- **Dedup:** skip rows where `url` already exists for the same `topic_id` + today (sargable range predicate using `raw_data_topic_date_idx`)
 
 ### apps/job
 
-- **Schedule:** per-topic `cron_time` from `TOPICS` table
-- **RAG:** Oracle Vector Search (`VECTOR_DISTANCE`) to retrieve relevant `RAW_DATA` for the topic
-- **LLM:** Ollama HTTP API (`http://host.docker.internal:11434`) → Gemma 2 9B (Q4_K_M, ~6 GB resident)
-- **Output:** Markdown report saved to `DAILY_REPORTS`
-- **Email:** Nodemailer + OCI SMTP relay → sent to `TOPICS.email`
+- **Schedule:** single global `JOB_CRON` env (default `0 5 * * *`). All topics processed in one batch.
+- **Step 1 — Clustering:** `gemma2:9b` groups all active topics into thematic clusters (`[{theme, topicIds[]}]`). Strict JSON output with markdown-fence stripping + 2-attempt retry + singleton fallback.
+- **Step 2 — Per-cluster RAG:** union of vector searches across each topic in the cluster, dedupe by URL, cap at 30 passages total
+- **Step 3 — Per-cluster analysis:** `gemma2:9b` writes ONE unified Markdown report covering all topics in the cluster (per-topic `##` sections + cross-topic signals)
+- **Step 4 — Email:** Nodemailer + Gmail SMTP, recipients deduped across cluster topics. Subject: `[Daily Report] <theme> — YYYY-MM-DD`.
 
 ### apps/archivist
 
@@ -149,9 +156,10 @@ ARCHIVED_SUMMARY (
 - **Framework:** Next.js 16 (App Router)
 - **Auth:** Auth.js v5 — Google OAuth, admin whitelist via `ADMIN_EMAILS`
 - **Pages:**
-  - `/topics` — CRUD for topics (keyword, email, cron_time, active toggle)
+  - `/topics` — CRUD for topics (keyword, email, active toggle)
   - `/dashboard` — live count of today's collected items per topic
   - `/reports` — paginated list of past `DAILY_REPORTS` with content viewer
+  - `/health` — crawler runs per source × topic (planned, requires V5 + `crawler_runs` table)
 - **Reverse proxy:** Caddy terminates TLS, proxies to `web:3000`
 
 ### packages/db
@@ -263,11 +271,13 @@ pnpm dc up -d --build
 
 ## 8. Phase Plan
 
-| Phase | Scope |
-|---|---|
-| 1 | Repo scaffold + DB schema (Flyway V1, V2) + packages/db |
-| 2 | apps/crawler — Reddit + News (Twitter/X added later) |
-| 3 | apps/job — Ollama RAG + email |
-| 4 | apps/archivist — daily cleanup + report retention |
-| 5 | apps/web — Topic Manager UI + Auth.js |
-| 6 | Docker compose + Caddy + CI/CD |
+Phases shipped out-of-order (6 ran first for infra; 4/5 still pending).
+
+| Phase | Scope | Status |
+|---|---|---|
+| 1 | Repo scaffold + DB schema (Flyway V1–V4) + packages/db | ✓ done |
+| 2 | apps/crawler — HN + Reddit (.json) + 41 curated RSS, cheerio article-body fallback | ✓ done |
+| 3 | apps/job — LLM topic clustering + cluster-aware RAG + per-cluster Gmail email | ✓ done |
+| 4 | apps/archivist — daily top-10 summarise + raw_data purge + 90-day report retention | ✗ pending |
+| 5 | apps/web — Topic Manager UI + Auth.js + crawler health dashboard (requires V5) | ✗ pending |
+| 6 | Docker compose + Caddy + CI/CD (config-only mode) | ✓ done |

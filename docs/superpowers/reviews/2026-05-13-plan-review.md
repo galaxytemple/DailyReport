@@ -16,10 +16,8 @@
 - **Fix:** switch the model to `qwen2.5:7b-instruct` (Q4_K_M, ~5 GB, 6–10 tok/s → ~2–4 min/topic). Fallback for higher quality: `gemma2:9b` (~6 GB, 3–5 tok/s). Update `analyze.ts`, `summarize.ts`, and the spec section §5 in one pass.
 - Also drop `mem_limit` on `job` and `archivist` from 4 GB → 1.5 GB (the heavy lifting is in Ollama on the host, not the worker), and set `OLLAMA_NUM_PARALLEL=1`, `OLLAMA_MAX_LOADED_MODELS=1`. Serialize per-topic jobs; concurrent inference on 4 cores hurts.
 
-### B2. `agent-twitter-client.searchTweets` is called with wrong arity (plan line 909)
-- Real signature is `searchTweets(query, maxResults, SearchMode)` (e.g. `SearchMode.Latest`). The plan calls it as `searchTweets(\`${keyword} lang:en\`, 20)` — behavior undefined; tweets may not return.
-- The plan's vitest mock (lines 856–860) yields a generator with no `SearchMode` argument, so the test passes against the mock but production fails. Tests are providing false confidence here.
-- **Fix:** import `SearchMode`, pass `SearchMode.Latest`, and have the test assert on the third argument. Also note the repo is heavily rate-limited; expect frequent failures regardless.
+### ~~B2. `agent-twitter-client.searchTweets` is called with wrong arity~~ — RESOLVED
+- **Resolved 2026-05-13:** Twitter source dropped entirely in Phase 2 architecture pivot. No `twitter.ts`, no `agent-twitter-client` dependency. The whole class of issue is moot.
 
 ---
 
@@ -62,9 +60,8 @@ CREATE INDEX archived_summary_topic_date_idx ON archived_summary (topic_id, repo
 ```
 The `TRUNC(created_at)` predicate won't use a plain `created_at` index — either change predicate to `created_at >= TRUNC(SYSTIMESTAMP) AND created_at < TRUNC(SYSTIMESTAMP) + 1` (sargable) or add a function-based index `CREATE INDEX … ON raw_data (topic_id, TRUNC(created_at))`. The sargable rewrite is preferred.
 
-### H7. RSS keyword filter will produce mostly empty results
-`apps/crawler/src/sources/news.ts` filters RSS items by case-insensitive substring on `title + contentSnippet`. A topic `"oil price"` won't match a headline like `"Crude rallies as OPEC cuts output"` even though it's clearly on-topic. This is the system's primary content source; an empty crawler means an empty report.
-- **Fix:** either (a) drop the keyword filter and just push **everything** from a curated set of finance RSS feeds, then let the embedding + vector search at job-time do the topic relevance; or (b) use the Yahoo Finance search API per keyword (already in plan) as the *primary* source and keep RSS only for context expansion. (a) is more aligned with the RAG design.
+### ~~H7. RSS keyword filter will produce mostly empty results~~ — RESOLVED
+- **Resolved 2026-05-13:** approach (a) chosen — the filter was dropped from `blogs.ts`. 41 curated RSS feeds are ingested wholesale; job-time Oracle vector search filters per topic. Plus `cheerio` article-body fallback when RSS snippet < 500 chars, fixing the "1-line summary" problem on Hugging Face / Discord style feeds.
 
 ---
 
@@ -81,8 +78,9 @@ The spec says `ORACLE_USER` is DML-only (good). But V1 grants `INSERT, UPDATE, D
 ### M3. `topics.cron_time` not validated on insert
 A malformed cron string (e.g. `"every 5 minutes"`) will be inserted, then the `job` process will throw at next startup and (with `restart: unless-stopped`) loop-crash. The web app `createTopic` action should validate the cron expression with `node-cron`'s `validate()` before insert.
 
-### M4. LLM JSON parsing in archivist has no test and no retry
-`summarize.ts` parses `res.message.content` as JSON, swallows the error silently, and skips the topic. Gemma 2 (or any open model) frequently returns markdown-fenced JSON. **At least add a `\`\`\`json` strip and one retry with `temperature=0`.** Add a unit test with a wrapped/garbage response.
+### ~~M4. LLM JSON parsing in archivist has no test and no retry~~ — PARTIALLY RESOLVED
+- **Resolved 2026-05-13 (job side):** `apps/job/src/cluster.ts` strips ` ```json ` fences, validates topic ids, has 2-attempt retry with `temperature=0`, falls back to singleton clusters. 7 vitest cases including garbage / unfenced / invalid-id scenarios.
+- **Still pending (archivist side):** Phase 4 archivist not yet built. Apply the same strip + retry + fallback pattern when implementing.
 
 ### M5. No retry/backoff anywhere
 Ollama HTTP, SMTP send, Reddit API, Twitter scraper, Yahoo Finance — none have retry. One transient 5xx fails the entire daily report for that topic. Add a small `pRetry`-style helper with 3 attempts and exponential backoff around each external call.
