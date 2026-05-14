@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Thin wrapper for ssh-ing to the OCI VM. Saves typing the key path + user@host
+# every time. Pass-through args: anything after `ssh-vm` goes to ssh.
+#
+#   ./scripts/ssh-vm                                  # interactive shell
+#   ./scripts/ssh-vm 'cd /opt/daily-report && ls'     # one-shot command
+#   ./scripts/ssh-vm 'cd /opt/daily-report && ./scripts/dc logs -f --tail 50 crawler'
+#
+# Override defaults via env: SSH_KEY, VM_HOST, VM_USER.
+set -euo pipefail
+
+KEY="${SSH_KEY:-$HOME/Documents/workspace/daily-report/ssh-key-2026-05-03.key}"
+USER="${VM_USER:-ubuntu}"
+HOST="${VM_HOST:-159.54.160.137}"
+
+if [ ! -f "$KEY" ]; then
+  # Fall back: maybe the key is at the repo root.
+  ALT="$(dirname "$0")/../ssh-key-2026-05-03.key"
+  if [ -f "$ALT" ]; then KEY="$ALT"; else
+    echo "ssh-vm: cannot find SSH key at $KEY (or $ALT)" >&2
+    exit 1
+  fi
+fi
+
+exec ssh -i "$KEY" "${USER}@${HOST}" "$@"

@@ -12,6 +12,8 @@
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
     "dc": "./scripts/dc",
+    "ssh-vm": "./scripts/ssh-vm",
+    "preflight": "./scripts/preflight.sh",
     "db:migrate": "./scripts/dc --profile tools run --rm flyway migrate",
     "db:info": "./scripts/dc --profile tools run --rm flyway info",
     "db:validate": "./scripts/dc --profile tools run --rm flyway validate",
