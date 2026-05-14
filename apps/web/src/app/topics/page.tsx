@@ -1,5 +1,6 @@
 import { getThemes, getTopicsWithTheme } from '@/lib/queries';
-import { createTopic, toggleTopic, deleteTopic } from './actions';
+import { toggleTopic, deleteTopic } from './actions';
+import { AddTopicForm } from './AddTopicForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,39 +26,7 @@ export default async function TopicsPage() {
 
       <section className="bg-white border border-gray-200 rounded-lg p-5">
         <h2 className="text-sm font-medium text-gray-700 mb-3">Add topic</h2>
-        {themes.length === 0 ? (
-          <p className="text-sm text-gray-500">
-            Create a <a href="/themes" className="text-blue-600 hover:underline">theme</a> first.
-          </p>
-        ) : (
-          <form action={createTopic} className="grid grid-cols-1 sm:grid-cols-[1fr_2fr_auto] gap-3">
-            <select
-              name="themeId"
-              required
-              defaultValue=""
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="" disabled>Select theme…</option>
-              {themes.map((th) => (
-                <option key={th.id} value={th.id}>
-                  {th.name}{th.active ? '' : ' (paused)'}
-                </option>
-              ))}
-            </select>
-            <input
-              name="keyword"
-              placeholder="Keyword (e.g. oil price, gemma weights)"
-              required
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <button
-              type="submit"
-              className="rounded-md bg-blue-600 text-white text-sm font-medium px-4 py-2 hover:bg-blue-700"
-            >
-              Add
-            </button>
-          </form>
-        )}
+        <AddTopicForm themes={themes} />
       </section>
 
       <section className="space-y-5">

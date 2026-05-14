@@ -1,10 +1,14 @@
-import { getThemes } from '@/lib/queries';
-import { createTheme, updateThemeEmails, toggleTheme, deleteTheme } from './actions';
+import { getThemes, getTopicKeywordsByTheme } from '@/lib/queries';
+import { createTheme, updateThemeEmails, toggleTheme } from './actions';
+import { DeleteThemeButton } from './DeleteThemeButton';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ThemesPage() {
-  const themes = await getThemes();
+  const [themes, topicsByTheme] = await Promise.all([
+    getThemes(),
+    getTopicKeywordsByTheme(),
+  ]);
 
   return (
     <div className="space-y-8">
@@ -65,14 +69,11 @@ export default async function ThemesPage() {
                     {t.active ? 'Pause' : 'Resume'}
                   </button>
                 </form>
-                <form action={deleteTheme.bind(null, t.id)}>
-                  <button
-                    type="submit"
-                    className="text-sm px-3 py-1.5 border border-red-200 text-red-600 rounded-md hover:bg-red-50"
-                  >
-                    Delete
-                  </button>
-                </form>
+                <DeleteThemeButton
+                  themeId={t.id}
+                  themeName={t.name}
+                  topicKeywords={topicsByTheme.get(t.id) ?? []}
+                />
               </div>
             </div>
             <form action={updateThemeEmails.bind(null, t.id)} className="mt-4 flex gap-2">

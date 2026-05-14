@@ -1,6 +1,27 @@
 import { initPool, getConnection, oracledb } from '@daily/db';
 import type { Theme, Topic } from '@daily/db';
 
+export async function getTopicKeywordsByTheme(): Promise<Map<number, string[]>> {
+  await initPool();
+  const conn = await getConnection();
+  try {
+    const result = await conn.execute<[number, string]>(
+      `SELECT theme_id, keyword FROM topics ORDER BY theme_id, id`,
+      [],
+      { outFormat: oracledb.OUT_FORMAT_ARRAY },
+    );
+    const out = new Map<number, string[]>();
+    for (const [tid, kw] of result.rows ?? []) {
+      const list = out.get(tid) ?? [];
+      list.push(kw);
+      out.set(tid, list);
+    }
+    return out;
+  } finally {
+    await conn.close();
+  }
+}
+
 export async function getThemes(): Promise<Theme[]> {
   await initPool();
   const conn = await getConnection();
