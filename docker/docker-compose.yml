@@ -4,13 +4,8 @@
 # matching the volume mount below). flyway/flyway:10-alpine bundles Oracle PKI
 # so the wallet's cwallet.sso is readable — do NOT upgrade to 11-alpine.
 #
-# Phase 6 state — apps/* services are COMMENTED OUT. Uncomment as each phase
-# completes:
-#   Phase 5 done → uncomment `web` + swap Caddyfile placeholder to
-#                  `reverse_proxy web:3000`
-#   Phase 2 done → uncomment `crawler`
-#   Phase 3 done → uncomment `job`
-#   Phase 4 done → uncomment `archivist`
+# All app services (web, crawler, job, archivist) are active. Caddy reverse-
+# proxies to web:3000.
 #
 # Profiles:
 #   (default) — caddy + (whichever apps are uncommented)
@@ -30,33 +25,29 @@ services:
       - caddy_config:/config
     environment:
       PUBLIC_HOST: "${PUBLIC_HOST}"
-    # Uncomment when `web` service below is enabled:
-    # depends_on:
-    #   web:
-    #     condition: service_healthy
+    depends_on:
+      web:
+        condition: service_healthy
     mem_limit: 128m
 
-  # ────────────────────────────────────────────────────────────────────────
-  # apps/web — Next.js 16 admin UI. Uncomment after Phase 5.
-  # Also swap Caddyfile's `respond` placeholder to `reverse_proxy web:3000`.
-  # ────────────────────────────────────────────────────────────────────────
-  # web:
-  #   build:
-  #     context: ../
-  #     dockerfile: ./docker/web.Dockerfile
-  #   restart: unless-stopped
-  #   env_file: ../.env
-  #   environment:
-  #     ORACLE_WALLET_DIR: /wallet
-  #   volumes:
-  #     - ../wallet:/wallet:ro
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "node -e \"require('net').connect({host:'127.0.0.1',port:3000}).on('connect',function(){this.end();process.exit(0)}).on('error',function(){process.exit(1)})\""]
-  #     interval: 30s
-  #     timeout: 5s
-  #     retries: 5
-  #     start_period: 60s
-  #   mem_limit: 512m
+  # apps/web — Next.js 16 admin UI (Phase 5 — active).
+  web:
+    build:
+      context: ../
+      dockerfile: ./docker/web.Dockerfile
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      ORACLE_WALLET_DIR: /wallet
+    volumes:
+      - ../wallet:/wallet:ro
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('net').connect({host:'127.0.0.1',port:3000}).on('connect',function(){this.end();process.exit(0)}).on('error',function(){process.exit(1)})\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    mem_limit: 512m
 
   # apps/crawler — hourly social/news fetch + embed (Phase 2 — active).
   crawler:
@@ -103,29 +94,27 @@ services:
       start_period: 15s
     mem_limit: 1536m
 
-  # ────────────────────────────────────────────────────────────────────────
-  # apps/archivist — nightly summarise + purge. Uncomment after Phase 4.
-  # ────────────────────────────────────────────────────────────────────────
-  # archivist:
-  #   build:
-  #     context: ../
-  #     dockerfile: ./docker/archivist.Dockerfile
-  #   restart: unless-stopped
-  #   env_file: ../.env
-  #   environment:
-  #     ORACLE_WALLET_DIR: /wallet
-  #     OLLAMA_URL: http://host.docker.internal:11434
-  #   extra_hosts:
-  #     - "host.docker.internal:host-gateway"
-  #   volumes:
-  #     - ../wallet:/wallet:ro
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "node -e 'process.exit(0)'"]
-  #     interval: 60s
-  #     timeout: 5s
-  #     retries: 3
-  #     start_period: 15s
-  #   mem_limit: 1536m
+  # apps/archivist — nightly summarise + purge at 03:00 (Phase 4 — active).
+  archivist:
+    build:
+      context: ../
+      dockerfile: ./docker/archivist.Dockerfile
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      ORACLE_WALLET_DIR: /wallet
+      OLLAMA_URL: http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ../wallet:/wallet:ro
+    healthcheck:
+      test: ["CMD-SHELL", "node -e 'process.exit(0)'"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    mem_limit: 1536m
 
   flyway:
     image: flyway/flyway:10-alpine

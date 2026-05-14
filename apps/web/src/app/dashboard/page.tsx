@@ -1,6 +1,6 @@
 import { getTopics, getTodayCount } from '@/lib/queries';
 
-export const revalidate = 300;
+export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
   const [topics, counts] = await Promise.all([getTopics(), getTodayCount()]);
@@ -8,7 +8,7 @@ export default async function DashboardPage() {
   return (
     <main>
       <h1>Dashboard — Today&apos;s Collection</h1>
-      <p style={{ color: '#666', fontSize: '0.9rem' }}>Refreshes every 5 minutes.</p>
+      <p style={{ color: '#666', fontSize: '0.9rem' }}>Refresh the page to update counts.</p>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr>
