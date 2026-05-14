@@ -29,7 +29,8 @@ export async function summariseYesterday(): Promise<void> {
     rows = await conn.execute<RawRow>(
       `SELECT id, topic_id, source, url, title, body
        FROM raw_data
-       WHERE created_at >= TRUNC(SYSTIMESTAMP) - 1
+       WHERE topic_id IS NOT NULL
+         AND created_at >= TRUNC(SYSTIMESTAMP) - 1
          AND created_at <  TRUNC(SYSTIMESTAMP)
        ORDER BY topic_id`,
       {},

@@ -45,15 +45,35 @@ export async function getTodayCount(): Promise<Record<number, number>> {
   await initPool();
   const conn = await getConnection();
   try {
+    // topic_id IS NOT NULL — global RSS pool is counted separately.
     const result = await conn.execute<[number, number]>(
       `SELECT topic_id, COUNT(*) FROM raw_data
-       WHERE created_at >= TRUNC(SYSTIMESTAMP)
+       WHERE topic_id IS NOT NULL
+         AND created_at >= TRUNC(SYSTIMESTAMP)
          AND created_at <  TRUNC(SYSTIMESTAMP) + 1
        GROUP BY topic_id`,
       [],
       { outFormat: oracledb.OUT_FORMAT_ARRAY },
     );
     return Object.fromEntries((result.rows ?? []).map(([tid, cnt]) => [tid, cnt]));
+  } finally {
+    await conn.close();
+  }
+}
+
+export async function getGlobalRssTodayCount(): Promise<number> {
+  await initPool();
+  const conn = await getConnection();
+  try {
+    const result = await conn.execute<[number]>(
+      `SELECT COUNT(*) FROM raw_data
+       WHERE topic_id IS NULL
+         AND created_at >= TRUNC(SYSTIMESTAMP)
+         AND created_at <  TRUNC(SYSTIMESTAMP) + 1`,
+      [],
+      { outFormat: oracledb.OUT_FORMAT_ARRAY },
+    );
+    return result.rows?.[0]?.[0] ?? 0;
   } finally {
     await conn.close();
   }

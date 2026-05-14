@@ -5,7 +5,7 @@ import { fetchBlogs } from './sources/blogs.js';
 import { fetchReddit } from './sources/reddit.js';
 import { fetchHackerNews } from './sources/hackernews.js';
 import { embedText } from './embed.js';
-import { storeItem } from './store.js';
+import { storeItem, storeGlobalItem } from './store.js';
 import type { CrawledItem } from './types.js';
 
 async function loadActiveTopics(): Promise<Topic[]> {
@@ -26,16 +26,45 @@ async function loadActiveTopics(): Promise<Topic[]> {
   }
 }
 
+async function crawlGlobalRss(): Promise<void> {
+  let items: CrawledItem[];
+  try {
+    items = await fetchBlogs();
+  } catch (e) {
+    console.warn('[crawler] global RSS fetch failed:', e);
+    return;
+  }
+
+  let inserted = 0;
+  let skipped = 0;
+  for (const item of items) {
+    const text = `${item.title} ${item.body}`.trim();
+    if (!text) continue;
+
+    try {
+      const embedding = await embedText(text);
+      const ok = await storeGlobalItem(item, embedding);
+      if (ok) inserted += 1;
+      else skipped += 1;
+    } catch (e) {
+      console.error(`[crawler] global item failed (${item.url ?? 'no-url'}):`, (e as Error).message);
+    }
+  }
+
+  console.log(
+    `[crawler] global RSS pool — ${items.length} candidates, ${inserted} new, ${skipped} dedup`,
+  );
+}
+
 async function crawlTopic(topic: Topic): Promise<void> {
   const results = await Promise.allSettled([
     fetchHackerNews(topic.keyword),
     fetchReddit(topic.keyword),
-    fetchBlogs(),
   ]);
 
   const items: CrawledItem[] = results.flatMap((r, i) => {
     if (r.status === 'fulfilled') return r.value;
-    const label = ['hackernews', 'reddit', 'blogs'][i];
+    const label = ['hackernews', 'reddit'][i];
     console.warn(`[crawler] topic=${topic.id} ${label} failed:`, r.reason);
     return [];
   });
@@ -63,6 +92,7 @@ async function crawlTopic(topic: Topic): Promise<void> {
 }
 
 async function runCrawl(): Promise<void> {
+  await crawlGlobalRss();
   const topics = await loadActiveTopics();
   for (const t of topics) {
     try {

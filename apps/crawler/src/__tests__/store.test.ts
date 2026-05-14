@@ -10,7 +10,7 @@ vi.mock('@daily/db', () => ({
   oracledb: { DB_TYPE_VECTOR: 'vector', CLOB: 'clob' },
 }));
 
-import { storeItem } from '../store.js';
+import { storeItem, storeGlobalItem } from '../store.js';
 import type { CrawledItem } from '../types.js';
 
 beforeEach(() => {
@@ -73,5 +73,29 @@ describe('storeItem', () => {
     executeMock.mockRejectedValueOnce(new Error('boom'));
     await expect(storeItem(1, item, [0.1])).rejects.toThrow('boom');
     expect(closeMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('storeGlobalItem', () => {
+  it('dedups via topic_id IS NULL and inserts with NULL topic_id', async () => {
+    executeMock
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rowsAffected: 1 });
+
+    const ok = await storeGlobalItem(item, [0.1]);
+    expect(ok).toBe(true);
+
+    const dedupSql = executeMock.mock.calls[0]![0] as string;
+    expect(dedupSql).toContain('topic_id IS NULL');
+
+    const insertCall = executeMock.mock.calls[1]!;
+    expect(insertCall[0]).toContain('VALUES (NULL,');
+  });
+
+  it('skips on duplicate URL in global pool same day', async () => {
+    executeMock.mockResolvedValueOnce({ rows: [[1]] });
+    const ok = await storeGlobalItem(item, [0.1]);
+    expect(ok).toBe(false);
+    expect(executeMock).toHaveBeenCalledTimes(1);
   });
 });

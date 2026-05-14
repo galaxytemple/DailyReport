@@ -7,7 +7,7 @@ export interface Passage {
   title: string;
   body: string;
   url: string | null;
-  topicId: number;
+  topicId: number | null;
 }
 
 export async function embedQuery(text: string): Promise<number[]> {
@@ -24,10 +24,12 @@ async function retrieveForTopic(
 ): Promise<Passage[]> {
   const conn = await getConnection();
   try {
-    const result = await conn.execute<{ TITLE: string; BODY: string; URL: string | null }>(
-      `SELECT title, body, url
+    // Include the global RSS pool (topic_id IS NULL). Embedding similarity
+    // surfaces only the items semantically close to this topic's keyword.
+    const result = await conn.execute<{ TID: number | null; TITLE: string; BODY: string; URL: string | null }>(
+      `SELECT topic_id AS tid, title, body, url
        FROM raw_data
-       WHERE topic_id = :tid
+       WHERE (topic_id = :tid OR topic_id IS NULL)
          AND created_at >= TRUNC(SYSTIMESTAMP)
          AND created_at <  TRUNC(SYSTIMESTAMP) + 1
        ORDER BY VECTOR_DISTANCE(embedding, :qvec, COSINE)
@@ -44,7 +46,7 @@ async function retrieveForTopic(
       title: r.TITLE,
       body: r.BODY,
       url: r.URL,
-      topicId,
+      topicId: r.TID,
     }));
   } finally {
     await conn.close();
@@ -69,7 +71,7 @@ export async function retrieveContextForCluster(
   const merged: Passage[] = [];
   for (const passages of perTopic) {
     for (const p of passages) {
-      const key = p.url ?? `${p.topicId}::${p.title}`;
+      const key = p.url ?? `${p.topicId ?? 'global'}::${p.title}`;
       if (seen.has(key)) continue;
       seen.add(key);
       merged.push(p);
