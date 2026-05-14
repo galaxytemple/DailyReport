@@ -1,17 +1,40 @@
 import { initPool, getConnection, oracledb } from '@daily/db';
-import type { Topic } from '@daily/db';
+import type { Theme, Topic } from '@daily/db';
 
-export async function getTopics(): Promise<Topic[]> {
+export async function getThemes(): Promise<Theme[]> {
   await initPool();
   const conn = await getConnection();
   try {
     const result = await conn.execute<[number, string, string, number, Date]>(
-      `SELECT id, keyword, email, active, created_at FROM topics ORDER BY id`,
+      `SELECT id, name, emails, active, created_at FROM themes ORDER BY id`,
       [],
       { outFormat: oracledb.OUT_FORMAT_ARRAY },
     );
-    return (result.rows ?? []).map(([id, keyword, email, active, createdAt]) => ({
-      id, keyword, email, active, createdAt,
+    return (result.rows ?? []).map(([id, name, emails, active, createdAt]) => ({
+      id, name, emails, active, createdAt,
+    }));
+  } finally {
+    await conn.close();
+  }
+}
+
+export interface TopicWithTheme extends Topic {
+  themeName: string;
+}
+
+export async function getTopicsWithTheme(): Promise<TopicWithTheme[]> {
+  await initPool();
+  const conn = await getConnection();
+  try {
+    const result = await conn.execute<[number, number, string, string, number, Date]>(
+      `SELECT t.id, t.theme_id, th.name, t.keyword, t.active, t.created_at
+       FROM topics t JOIN themes th ON t.theme_id = th.id
+       ORDER BY th.name, t.id`,
+      [],
+      { outFormat: oracledb.OUT_FORMAT_ARRAY },
+    );
+    return (result.rows ?? []).map(([id, themeId, themeName, keyword, active, createdAt]) => ({
+      id, themeId, themeName, keyword, active, createdAt,
     }));
   } finally {
     await conn.close();
@@ -38,8 +61,8 @@ export async function getTodayCount(): Promise<Record<number, number>> {
 
 export interface ReportListItem {
   id: number;
-  topicId: number;
-  keyword: string;
+  themeId: number;
+  themeName: string;
   theme: string | null;
   sentAt: Date | null;
   createdAt: Date;
@@ -51,15 +74,15 @@ export async function getReports(page: number, limit = 20): Promise<ReportListIt
   try {
     const offset = (page - 1) * limit;
     const result = await conn.execute<[number, number, string, string | null, Date | null, Date]>(
-      `SELECT r.id, r.topic_id, t.keyword, r.theme, r.sent_at, r.created_at
-       FROM daily_reports r JOIN topics t ON r.topic_id = t.id
+      `SELECT r.id, r.theme_id, th.name, r.theme, r.sent_at, r.created_at
+       FROM daily_reports r JOIN themes th ON r.theme_id = th.id
        ORDER BY r.created_at DESC
        OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY`,
       { offset, limit },
       { outFormat: oracledb.OUT_FORMAT_ARRAY },
     );
-    return (result.rows ?? []).map(([id, topicId, keyword, theme, sentAt, createdAt]) => ({
-      id, topicId, keyword, theme, sentAt, createdAt,
+    return (result.rows ?? []).map(([id, themeId, themeName, theme, sentAt, createdAt]) => ({
+      id, themeId, themeName, theme, sentAt, createdAt,
     }));
   } finally {
     await conn.close();

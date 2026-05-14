@@ -2,22 +2,23 @@
 import { revalidatePath } from 'next/cache';
 import { initPool, getConnection } from '@daily/db';
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 export async function createTopic(formData: FormData): Promise<void> {
   const keyword = String(formData.get('keyword') ?? '').trim();
-  const email = String(formData.get('email') ?? '').trim();
+  const themeIdRaw = String(formData.get('themeId') ?? '').trim();
+  const themeId = Number(themeIdRaw);
 
-  if (!keyword || !email) throw new Error('All fields required');
-  if (!EMAIL_RE.test(email)) throw new Error(`Invalid email: "${email}"`);
+  if (!keyword) throw new Error('Keyword required');
   if (keyword.length > 500) throw new Error('Keyword too long (max 500)');
+  if (!Number.isInteger(themeId) || themeId <= 0) {
+    throw new Error('Theme required');
+  }
 
   await initPool();
   const conn = await getConnection();
   try {
     await conn.execute(
-      `INSERT INTO topics (keyword, email) VALUES (:keyword, :email)`,
-      { keyword, email },
+      `INSERT INTO topics (theme_id, keyword) VALUES (:themeId, :keyword)`,
+      { themeId, keyword },
       { autoCommit: true },
     );
   } finally {

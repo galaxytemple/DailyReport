@@ -1,32 +1,57 @@
-import { getTopics, getTodayCount } from '@/lib/queries';
+import { getTopicsWithTheme, getTodayCount } from '@/lib/queries';
 
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
-  const [topics, counts] = await Promise.all([getTopics(), getTodayCount()]);
+  const [topics, counts] = await Promise.all([getTopicsWithTheme(), getTodayCount()]);
+
+  const byTheme = new Map<string, typeof topics>();
+  for (const t of topics) {
+    const list = byTheme.get(t.themeName) ?? [];
+    list.push(t);
+    byTheme.set(t.themeName, list);
+  }
 
   return (
-    <main>
-      <h1>Dashboard — Today&apos;s Collection</h1>
-      <p style={{ color: '#666', fontSize: '0.9rem' }}>Refresh the page to update counts.</p>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr>
-            <th style={{ textAlign: 'left' }}>Topic</th>
-            <th>Items today</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {topics.map((t) => (
-            <tr key={t.id} style={{ borderTop: '1px solid #eee' }}>
-              <td>{t.keyword}</td>
-              <td style={{ textAlign: 'center' }}>{counts[t.id] ?? 0}</td>
-              <td style={{ textAlign: 'center' }}>{t.active ? '🟢 active' : '⏸ paused'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </main>
+    <div className="space-y-8">
+      <header>
+        <h1 className="text-2xl font-semibold">Dashboard — Today&apos;s Collection</h1>
+        <p className="text-sm text-gray-500 mt-1">Refresh the page to update counts.</p>
+      </header>
+
+      <section className="space-y-5">
+        {Array.from(byTheme.entries()).map(([themeName, list]) => {
+          const total = list.reduce((sum, t) => sum + (counts[t.id] ?? 0), 0);
+          return (
+            <div key={themeName} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+              <div className="px-5 py-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+                <h3 className="font-medium">{themeName}</h3>
+                <span className="text-sm text-gray-600">{total} item(s) today</span>
+              </div>
+              <ul className="divide-y divide-gray-100">
+                {list.map((t) => (
+                  <li key={t.id} className="px-5 py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">{t.keyword}</span>
+                      {t.active ? (
+                        <span className="text-xs text-green-700">●</span>
+                      ) : (
+                        <span className="text-xs text-gray-400">○</span>
+                      )}
+                    </div>
+                    <span className="text-sm font-mono text-gray-700">{counts[t.id] ?? 0}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+        {topics.length === 0 && (
+          <div className="text-center text-sm text-gray-500 py-12 border border-dashed border-gray-300 rounded-lg">
+            No topics yet.
+          </div>
+        )}
+      </section>
+    </div>
   );
 }
