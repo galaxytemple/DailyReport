@@ -40,4 +40,21 @@ export const RSS_FEEDS: ReadonlyArray<string> = [
   'https://www.investing.com/rss/news_95.rss',
   'https://econbrowser.com/feed',
   'https://thelongview.substack.com/feed',
+
+  // Reddit subreddits via RSS (public, no auth, different rate-limit layer
+  // than /search.json — survives cloud-egress filtering that 403s the API).
+  // Goes into the global pool; embedding similarity in the job's RAG step
+  // surfaces items relevant to each theme.
+  'https://www.reddit.com/r/MachineLearning/new/.rss',
+  'https://www.reddit.com/r/LocalLLaMA/new/.rss',
+  'https://www.reddit.com/r/OpenAI/new/.rss',
+  'https://www.reddit.com/r/ClaudeAI/new/.rss',
+  'https://www.reddit.com/r/singularity/new/.rss',
+  'https://www.reddit.com/r/programming/new/.rss',
+  'https://www.reddit.com/r/ExperiencedDevs/new/.rss',
+  'https://www.reddit.com/r/cscareerquestions/new/.rss',
+  'https://www.reddit.com/r/stocks/new/.rss',
+  'https://www.reddit.com/r/investing/new/.rss',
+  'https://www.reddit.com/r/Economics/new/.rss',
+  'https://www.reddit.com/r/wallstreetbets/new/.rss',
 ];

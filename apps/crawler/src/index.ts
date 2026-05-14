@@ -2,7 +2,6 @@ import cron from 'node-cron';
 import { initPool, getConnection, oracledb } from '@daily/db';
 import type { Topic } from '@daily/db';
 import { fetchBlogs } from './sources/blogs.js';
-import { fetchReddit } from './sources/reddit.js';
 import { fetchHackerNews } from './sources/hackernews.js';
 import { embedText } from './embed.js';
 import { storeItem, storeGlobalItem } from './store.js';
@@ -57,17 +56,15 @@ async function crawlGlobalRss(): Promise<void> {
 }
 
 async function crawlTopic(topic: Topic): Promise<void> {
-  const results = await Promise.allSettled([
-    fetchHackerNews(topic.keyword),
-    fetchReddit(topic.keyword),
-  ]);
-
-  const items: CrawledItem[] = results.flatMap((r, i) => {
-    if (r.status === 'fulfilled') return r.value;
-    const label = ['hackernews', 'reddit'][i];
-    console.warn(`[crawler] topic=${topic.id} ${label} failed:`, r.reason);
-    return [];
-  });
+  // Reddit's /search.json is 403'd from cloud IPs (OCI/AWS/GCP egress).
+  // Reddit content now arrives via subreddit RSS in the global pool — see
+  // RSS_FEEDS in feeds.ts. fetchReddit() removed from this path.
+  let items: CrawledItem[] = [];
+  try {
+    items = await fetchHackerNews(topic.keyword);
+  } catch (e) {
+    console.warn(`[crawler] topic=${topic.id} hackernews failed:`, e);
+  }
 
   let inserted = 0;
   let skipped = 0;
