@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@daily/db": "workspace:*",
+    "cheerio": "^1.0.0",
     "ollama": "^0.5.0",
     "rss-parser": "^3.13.0",
     "node-cron": "^4.0.0",
