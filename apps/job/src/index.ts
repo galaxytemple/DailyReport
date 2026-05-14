@@ -1,79 +1,107 @@
 import cron from 'node-cron';
 import { initPool, getConnection, oracledb } from '@daily/db';
-import type { Topic } from '@daily/db';
-import { clusterTopics } from './cluster.js';
-import type { TopicCluster } from './cluster.js';
+import type { Theme, Topic } from '@daily/db';
 import { retrieveContextForCluster } from './rag.js';
 import { analyzeCluster } from './analyze.js';
 import { saveReport, markSent } from './report.js';
 import { sendReport } from './email.js';
 
-async function loadActiveTopics(): Promise<Topic[]> {
+interface ThemeWithTopics extends Theme {
+  topics: Topic[];
+}
+
+async function loadActiveThemesWithTopics(): Promise<ThemeWithTopics[]> {
   const conn = await getConnection();
   try {
-    const result = await conn.execute<[number, string, string, number]>(
-      `SELECT id, keyword, email, active FROM topics WHERE active = 1`,
+    const themesResult = await conn.execute<[number, string, string, number, Date]>(
+      `SELECT id, name, emails, active, created_at
+       FROM themes
+       WHERE active = 1
+       ORDER BY id`,
       [],
       { outFormat: oracledb.OUT_FORMAT_ARRAY },
     );
-    return (result.rows ?? []).map(([id, keyword, email, active]) => ({
-      id, keyword, email, active, createdAt: new Date(),
-    }));
+    const themes: ThemeWithTopics[] = (themesResult.rows ?? []).map(
+      ([id, name, emails, active, createdAt]) => ({
+        id, name, emails, active, createdAt, topics: [],
+      }),
+    );
+    if (themes.length === 0) return [];
+
+    const binds: Record<string, number> = {};
+    themes.forEach((t, i) => { binds[`t${i}`] = t.id; });
+    const placeholders = themes.map((_, i) => `:t${i}`).join(',');
+
+    const topicsResult = await conn.execute<[number, number, string, number, Date]>(
+      `SELECT id, theme_id, keyword, active, created_at
+       FROM topics
+       WHERE active = 1
+         AND theme_id IN (${placeholders})`,
+      binds,
+      { outFormat: oracledb.OUT_FORMAT_ARRAY },
+    );
+
+    const byThemeId = new Map(themes.map((t) => [t.id, t]));
+    for (const [id, themeId, keyword, active, createdAt] of topicsResult.rows ?? []) {
+      byThemeId.get(themeId)?.topics.push({ id, themeId, keyword, active, createdAt });
+    }
+    return themes.filter((t) => t.topics.length > 0);
   } finally {
     await conn.close();
   }
 }
 
-async function processCluster(
-  cluster: TopicCluster,
-  topicsById: Map<number, Topic>,
-): Promise<void> {
-  const topics = cluster.topicIds.map((id) => topicsById.get(id)).filter(Boolean) as Topic[];
-  if (topics.length === 0) return;
+function splitEmails(csv: string): string[] {
+  return csv.split(',').map((e) => e.trim()).filter(Boolean);
+}
 
-  console.log(`[job] cluster "${cluster.theme}" — ${topics.length} topic(s): ${topics.map((t) => t.keyword).join(', ')}`);
-
-  const passages = await retrieveContextForCluster(
-    topics.map((t) => ({ topicId: t.id, keyword: t.keyword })),
+async function processTheme(theme: ThemeWithTopics): Promise<void> {
+  console.log(
+    `[job] theme "${theme.name}" — ${theme.topics.length} topic(s): ${theme.topics
+      .map((t) => t.keyword)
+      .join(', ')}`,
   );
 
+  const passages = await retrieveContextForCluster(
+    theme.topics.map((t) => ({ topicId: t.id, keyword: t.keyword })),
+  );
   if (passages.length === 0) {
-    console.log(`[job] cluster "${cluster.theme}" — no passages, skipping`);
+    console.log(`[job] theme "${theme.name}" — no passages, skipping`);
     return;
   }
 
   const content = await analyzeCluster({
-    theme: cluster.theme,
-    topics: topics.map((t) => ({ id: t.id, keyword: t.keyword })),
+    theme: theme.name,
+    topics: theme.topics.map((t) => ({ id: t.id, keyword: t.keyword })),
     passages,
   });
 
-  const reportId = await saveReport(topics[0].id, cluster.theme, content);
+  const reportId = await saveReport(theme.id, theme.name, content);
 
-  const recipients = Array.from(new Set(topics.map((t) => t.email)));
-  await sendReport({ to: recipients, theme: cluster.theme, content });
-  await markSent(reportId);
-
-  console.log(`[job] cluster "${cluster.theme}" — sent to ${recipients.join(', ')} (report=${reportId})`);
-}
-
-async function runJob(): Promise<void> {
-  const topics = await loadActiveTopics();
-  if (topics.length === 0) {
-    console.log('[job] no active topics, exiting');
+  const recipients = splitEmails(theme.emails);
+  if (recipients.length === 0) {
+    console.log(`[job] theme "${theme.name}" — no recipients; saved but not sent (report=${reportId})`);
     return;
   }
 
-  console.log(`[job] starting — ${topics.length} active topic(s)`);
-  const clusters = await clusterTopics(topics);
-  console.log(`[job] clustered into ${clusters.length} group(s)`);
+  await sendReport({ to: recipients, theme: theme.name, content });
+  await markSent(reportId);
+  console.log(`[job] theme "${theme.name}" — sent to ${recipients.join(', ')} (report=${reportId})`);
+}
 
-  const topicsById = new Map(topics.map((t) => [t.id, t]));
-  for (const cluster of clusters) {
+async function runJob(): Promise<void> {
+  const themes = await loadActiveThemesWithTopics();
+  if (themes.length === 0) {
+    console.log('[job] no active themes with topics, exiting');
+    return;
+  }
+
+  console.log(`[job] starting — ${themes.length} active theme(s)`);
+  for (const theme of themes) {
     try {
-      await processCluster(cluster, topicsById);
+      await processTheme(theme);
     } catch (e) {
-      console.error(`[job] cluster "${cluster.theme}" failed:`, e);
+      console.error(`[job] theme "${theme.name}" failed:`, e);
     }
   }
   console.log('[job] done');

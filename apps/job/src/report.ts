@@ -1,19 +1,19 @@
 import { getConnection, oracledb } from '@daily/db';
 
 export async function saveReport(
-  primaryTopicId: number,
-  theme: string,
+  themeId: number,
+  themeName: string,
   content: string,
 ): Promise<number> {
   const conn = await getConnection();
   try {
     const result = await conn.execute(
-      `INSERT INTO daily_reports (topic_id, theme, content)
+      `INSERT INTO daily_reports (theme_id, theme, content)
        VALUES (:tid, :theme, :content)
        RETURNING id INTO :id`,
       {
-        tid: primaryTopicId,
-        theme: theme.slice(0, 200),
+        tid: themeId,
+        theme: themeName.slice(0, 200),
         content: { val: content, type: oracledb.CLOB },
         id: { dir: oracledb.BIND_OUT, type: oracledb.NUMBER },
       },

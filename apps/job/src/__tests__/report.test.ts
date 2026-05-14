@@ -18,7 +18,7 @@ beforeEach(() => {
 });
 
 describe('saveReport', () => {
-  it('inserts with theme and returns generated id', async () => {
+  it('inserts theme_id + theme name and returns generated id', async () => {
     executeMock.mockResolvedValueOnce({ outBinds: { id: [42] } });
 
     const id = await saveReport(7, 'AI coding tools', '# report');
@@ -26,12 +26,12 @@ describe('saveReport', () => {
     expect(id).toBe(42);
     const [sql, binds] = executeMock.mock.calls[0]!;
     expect(sql).toContain('INSERT INTO daily_reports');
-    expect(sql).toContain('theme');
+    expect(sql).toContain('theme_id');
     expect(binds).toMatchObject({ tid: 7, theme: 'AI coding tools' });
     expect((binds as Record<string, unknown>).content).toMatchObject({ type: 'clob' });
   });
 
-  it('caps theme at 200 chars', async () => {
+  it('caps theme name at 200 chars', async () => {
     executeMock.mockResolvedValueOnce({ outBinds: { id: [1] } });
     const huge = 'x'.repeat(500);
 

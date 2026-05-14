@@ -11,13 +11,15 @@ import type { CrawledItem } from './types.js';
 async function loadActiveTopics(): Promise<Topic[]> {
   const conn = await getConnection();
   try {
-    const result = await conn.execute<[number, string, string, number]>(
-      `SELECT id, keyword, email, active FROM topics WHERE active = 1`,
+    const result = await conn.execute<[number, number, string, number]>(
+      `SELECT t.id, t.theme_id, t.keyword, t.active
+       FROM topics t JOIN themes th ON t.theme_id = th.id
+       WHERE t.active = 1 AND th.active = 1`,
       [],
       { outFormat: oracledb.OUT_FORMAT_ARRAY },
     );
-    return (result.rows ?? []).map(([id, keyword, email, active]) => ({
-      id, keyword, email, active, createdAt: new Date(),
+    return (result.rows ?? []).map(([id, themeId, keyword, active]) => ({
+      id, themeId, keyword, active, createdAt: new Date(),
     }));
   } finally {
     await conn.close();
