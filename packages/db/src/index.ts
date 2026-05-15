@@ -5,6 +5,10 @@ let initialised = false;
 export async function initPool(): Promise<void> {
   if (initialised) return;
 
+  // CLOB columns (e.g. raw_data.body) otherwise return Lob stream objects,
+  // breaking consumers that expect string.slice(). Coerce at the driver layer.
+  oracledb.fetchAsString = [oracledb.CLOB];
+
   await oracledb.createPool({
     user: process.env.ORACLE_USER!,
     password: process.env.ORACLE_PASSWORD!,
