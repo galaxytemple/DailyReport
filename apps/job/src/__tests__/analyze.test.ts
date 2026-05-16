@@ -8,15 +8,17 @@ vi.mock('ollama', () => ({
 
 import { analyzeCluster } from '../analyze.js';
 
+async function* streamOf(...parts: string[]) {
+  for (const p of parts) yield { message: { content: p } };
+}
+
 beforeEach(() => {
   chatMock.mockReset();
 });
 
 describe('analyzeCluster', () => {
   it('returns the LLM markdown content', async () => {
-    chatMock.mockResolvedValueOnce({
-      message: { content: '# AI tools\n\n- bullet\n' },
-    });
+    chatMock.mockResolvedValueOnce(streamOf('# AI tools\n\n- bullet\n'));
 
     const out = await analyzeCluster({
       theme: 'AI coding tools',
@@ -28,7 +30,7 @@ describe('analyzeCluster', () => {
   });
 
   it('passes a system prompt that names inputs as DATA', async () => {
-    chatMock.mockResolvedValueOnce({ message: { content: 'ok' } });
+    chatMock.mockResolvedValueOnce(streamOf('ok'));
 
     await analyzeCluster({
       theme: 'X',
@@ -41,8 +43,34 @@ describe('analyzeCluster', () => {
     expect(messages?.[0]?.content).toMatch(/DATA/);
   });
 
+  it('concatenates streamed chunks into a single string', async () => {
+    chatMock.mockResolvedValueOnce(streamOf('Hello, ', 'world', '!'));
+
+    const out = await analyzeCluster({
+      theme: 'X',
+      topics: [{ id: 1, keyword: 'kw' }],
+      passages: [],
+    });
+
+    expect(out).toBe('Hello, world!');
+  });
+
+  it('requests streaming with keep_alive set', async () => {
+    chatMock.mockResolvedValueOnce(streamOf('ok'));
+
+    await analyzeCluster({
+      theme: 'X',
+      topics: [{ id: 1, keyword: 'kw' }],
+      passages: [],
+    });
+
+    const args = chatMock.mock.calls[0]?.[0];
+    expect(args?.stream).toBe(true);
+    expect(args?.keep_alive).toBeDefined();
+  });
+
   it('sanitizes newlines and length from the theme', async () => {
-    chatMock.mockResolvedValueOnce({ message: { content: 'ok' } });
+    chatMock.mockResolvedValueOnce(streamOf('ok'));
     const evilTheme = 'evil\ntheme\rwith newlines ' + 'x'.repeat(500);
 
     await analyzeCluster({
