@@ -40,10 +40,10 @@ Write a daily report in Markdown:
 
 Keep total length under ~800 words. Skip topics with no relevant items rather than padding.`;
 
-  // Streaming so undici's headersTimeout (5min default) doesn't fire on long
-  // generations — headers arrive with the first chunk instead of after the
-  // whole response is generated. keep_alive holds the model in memory across
-  // sequential theme calls in the same run.
+  // Stream so chunks are flushed instead of buffered into one big response.
+  // keep_alive holds the model in memory across sequential theme calls.
+  // undici timeouts are disabled globally in index.ts — required because
+  // CPU-only prefill on this VM can take >5min before the first byte.
   const stream = await ollama.chat({
     model: 'gemma2:9b',
     messages: [

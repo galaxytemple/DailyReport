@@ -1,3 +1,9 @@
+import { Agent, setGlobalDispatcher } from 'undici';
+// CPU-only Ollama on this VM: prefill for a multi-thousand-token prompt can
+// take many minutes before the first byte. Disable undici's headers/body
+// timeouts (5min/5min by default) so long Ollama calls don't abort mid-prefill.
+setGlobalDispatcher(new Agent({ headersTimeout: 0, bodyTimeout: 0 }));
+
 import cron from 'node-cron';
 import { initPool, getConnection, oracledb } from '@daily/db';
 import type { Theme, Topic } from '@daily/db';
