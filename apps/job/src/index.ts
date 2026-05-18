@@ -116,6 +116,20 @@ async function runJob(): Promise<void> {
 async function main(): Promise<void> {
   await initPool();
 
+  // --once: manual test run. Executes runJob immediately and exits.
+  // Touches only themes/topics/raw_data/reports for read + reports for write;
+  // does NOT trigger archivist (the only thing that deletes raw_data).
+  if (process.argv.includes('--once')) {
+    console.log('[job] manual run (--once) — raw_data is NOT purged');
+    try {
+      await runJob();
+      process.exit(0);
+    } catch (e) {
+      console.error('[job] manual run failed:', e);
+      process.exit(1);
+    }
+  }
+
   const schedule = process.env.JOB_CRON ?? '0 5 * * *';
   if (!cron.validate(schedule)) {
     throw new Error(`Invalid JOB_CRON: "${schedule}"`);

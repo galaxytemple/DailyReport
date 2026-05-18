@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Trigger the daily report job manually inside the running job container.
+# Used for testing — does NOT call archivist, so raw_data is not deleted.
+#
+# Exec'ing into the live container (not `compose run --rm`) reuses the same
+# env_file, wallet mount, and host-gateway plumbing as the cron run.
+#
+#   ./scripts/job-run-now             # locally against this docker-compose
+#   ./scripts/ssh-vm 'cd /opt/daily-report && ./scripts/job-run-now'   # on VM
+set -euo pipefail
+exec "$(dirname "$0")/dc" exec job node --import tsx src/index.ts --once
