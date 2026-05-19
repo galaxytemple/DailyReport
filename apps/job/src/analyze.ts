@@ -59,5 +59,16 @@ Keep total length under ~800 words. Skip topics with no relevant items rather th
   for await (const chunk of stream) {
     content += chunk.message.content;
   }
-  return content;
+  return content + buildSources(input.passages);
+}
+
+// Append a deterministic Sources section so the reader can follow [N] citations
+// back to the original URL even when the LLM forgets to inline links.
+// Numbering matches the [N] indices fed to the LLM in `context` above.
+function buildSources(passages: Passage[]): string {
+  const lines = passages
+    .map((p, i) => (p.url ? `[${i + 1}] ${p.title} — ${p.url}` : null))
+    .filter((s): s is string => s !== null);
+  if (lines.length === 0) return '';
+  return `\n\n## Sources\n\n${lines.join('\n')}\n`;
 }

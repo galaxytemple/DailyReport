@@ -69,6 +69,37 @@ describe('analyzeCluster', () => {
     expect(args?.keep_alive).toBeDefined();
   });
 
+  it('appends a Sources section with numbered URLs from passages', async () => {
+    chatMock.mockResolvedValueOnce(streamOf('body [1] [2]'));
+
+    const out = await analyzeCluster({
+      theme: 'X',
+      topics: [{ id: 1, keyword: 'kw' }],
+      passages: [
+        { title: 'First', body: 'b1', url: 'https://a/1', topicId: 1 },
+        { title: 'No-URL', body: 'b2', url: null, topicId: 1 },
+        { title: 'Third', body: 'b3', url: 'https://a/3', topicId: 1 },
+      ],
+    });
+
+    expect(out).toContain('## Sources');
+    expect(out).toContain('[1] First — https://a/1');
+    expect(out).toContain('[3] Third — https://a/3');
+    expect(out).not.toContain('[2] No-URL');
+  });
+
+  it('omits Sources section when no passages have URLs', async () => {
+    chatMock.mockResolvedValueOnce(streamOf('body'));
+
+    const out = await analyzeCluster({
+      theme: 'X',
+      topics: [{ id: 1, keyword: 'kw' }],
+      passages: [{ title: 'No-URL', body: 'b', url: null, topicId: 1 }],
+    });
+
+    expect(out).not.toContain('## Sources');
+  });
+
   it('sanitizes newlines and length from the theme', async () => {
     chatMock.mockResolvedValueOnce(streamOf('ok'));
     const evilTheme = 'evil\ntheme\rwith newlines ' + 'x'.repeat(500);
