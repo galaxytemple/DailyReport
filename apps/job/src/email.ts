@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { marked } from 'marked';
 
 // OCI's region alias smtp.<region>.oraclecloud.com connects to a server whose
 // cert CN is smtp.email.<region>.oci.oraclecloud.com, so Node's strict
@@ -24,14 +25,15 @@ export async function sendReport(opts: {
   content: string;
 }): Promise<void> {
   const date = new Date().toISOString().slice(0, 10);
+  // Render markdown to HTML so headings, lists, and ref-number links from
+  // analyze.ts's linkRefs() become clickable in mail clients. Plain-text
+  // body keeps the raw markdown for clients that prefer it.
+  const html = await marked.parse(opts.content, { async: true });
   await transporter.sendMail({
     from: process.env.SMTP_FROM!,
     to: opts.to.join(', '),
     subject: `[Daily Report] ${opts.theme} — ${date}`,
     text: opts.content,
-    html: `<pre style="font-family:monospace;white-space:pre-wrap;line-height:1.5">${opts.content
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')}</pre>`,
+    html: `<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;line-height:1.6;max-width:720px;color:#222">${html}</div>`,
   });
 }

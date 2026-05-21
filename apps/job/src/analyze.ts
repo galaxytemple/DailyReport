@@ -59,15 +59,34 @@ Keep total length under ~800 words. Skip topics with no relevant items rather th
   for await (const chunk of stream) {
     content += chunk.message.content;
   }
-  return content + buildSources(input.passages);
+  return linkRefs(content, input.passages) + buildSources(input.passages);
+}
+
+// Rewrite every [N] in the LLM output to a markdown link pointing at
+// passage N's URL so citations are clickable once the markdown is rendered
+// to HTML. Brackets are escaped so the visible text stays "[N]". Passages
+// with no URL keep the plain "[N]" form. Angle-bracket URL form tolerates
+// `)` and other special chars in URLs.
+function linkRefs(content: string, passages: Passage[]): string {
+  return content.replace(/\[(\d+)\]/g, (match, n: string) => {
+    const url = passages[Number(n) - 1]?.url;
+    return url ? `[\\[${n}\\]](<${url}>)` : match;
+  });
+}
+
+function escapeLinkText(s: string): string {
+  return s.replace(/[\[\]]/g, (c) => `\\${c}`);
 }
 
 // Append a deterministic Sources section so the reader can follow [N] citations
 // back to the original URL even when the LLM forgets to inline links.
 // Numbering matches the [N] indices fed to the LLM in `context` above.
+// Each entry's title is a markdown link so it is clickable in HTML email.
 function buildSources(passages: Passage[]): string {
   const lines = passages
-    .map((p, i) => (p.url ? `[${i + 1}] ${p.title} — ${p.url}` : null))
+    .map((p, i) =>
+      p.url ? `\\[${i + 1}\\] [${escapeLinkText(p.title)}](<${p.url}>)` : null,
+    )
     .filter((s): s is string => s !== null);
   if (lines.length === 0) return '';
   return `\n\n## Sources\n\n${lines.join('\n')}\n`;

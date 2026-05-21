@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@daily/db": "workspace:*",
+    "marked": "^15.0.0",
     "node-cron": "^4.0.0",
     "nodemailer": "^6.9.0",
     "ollama": "^0.5.0",

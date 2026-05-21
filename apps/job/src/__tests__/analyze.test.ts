@@ -69,8 +69,8 @@ describe('analyzeCluster', () => {
     expect(args?.keep_alive).toBeDefined();
   });
 
-  it('appends a Sources section with numbered URLs from passages', async () => {
-    chatMock.mockResolvedValueOnce(streamOf('body [1] [2]'));
+  it('appends a Sources section with numbered markdown links from passages', async () => {
+    chatMock.mockResolvedValueOnce(streamOf('body'));
 
     const out = await analyzeCluster({
       theme: 'X',
@@ -83,9 +83,27 @@ describe('analyzeCluster', () => {
     });
 
     expect(out).toContain('## Sources');
-    expect(out).toContain('[1] First — https://a/1');
-    expect(out).toContain('[3] Third — https://a/3');
-    expect(out).not.toContain('[2] No-URL');
+    expect(out).toContain('\\[1\\] [First](<https://a/1>)');
+    expect(out).toContain('\\[3\\] [Third](<https://a/3>)');
+    expect(out).not.toContain('No-URL');
+  });
+
+  it('rewrites [N] in the body to a markdown link to passage N url', async () => {
+    chatMock.mockResolvedValueOnce(streamOf('see [1] and [2] and [3].'));
+
+    const out = await analyzeCluster({
+      theme: 'X',
+      topics: [{ id: 1, keyword: 'kw' }],
+      passages: [
+        { title: 'First', body: 'b1', url: 'https://a/1', topicId: 1 },
+        { title: 'No-URL', body: 'b2', url: null, topicId: 1 },
+        { title: 'Third', body: 'b3', url: 'https://a/3', topicId: 1 },
+      ],
+    });
+
+    expect(out).toContain('[\\[1\\]](<https://a/1>)');
+    expect(out).toContain('[\\[3\\]](<https://a/3>)');
+    expect(out).toMatch(/and \[2\] and/);
   });
 
   it('omits Sources section when no passages have URLs', async () => {
