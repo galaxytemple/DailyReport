@@ -128,6 +128,21 @@ sudo netfilter-persistent save
 sudo iptables -L INPUT -n --line-numbers | grep -E 'dpt:(80|443)|REJECT'
 ```
 
+**Also required for Ollama (easy to miss):** the `job`/`crawler` containers
+reach the host's Ollama via `host.docker.internal` (= `172.17.0.1`). Those
+packets enter the host's INPUT chain from the docker bridge subnet and get
+killed by the same trailing REJECT — the container sees
+`172.17.0.1: Host is unreachable`. Allow the docker bridge range to the Ollama
+port only:
+
+```bash
+sudo iptables -I INPUT 7 -s 172.16.0.0/12 -p tcp --dport 11434 -j ACCEPT
+sudo netfilter-persistent save
+# verify from a container:
+cd /opt/daily-report && ./scripts/dc exec -T job \
+  sh -c 'wget -qO- http://host.docker.internal:11434/api/tags | head -c 80'
+```
+
 ### 4d. Ollama + models (host LLM, run on the VM yourself)
 
 The `job`/`crawler` containers reach the host's Ollama via
