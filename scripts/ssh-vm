@@ -11,7 +11,7 @@ set -euo pipefail
 
 KEY="${SSH_KEY:-/Users/temple/2fa/oracle/ssh-key-2026-05-03.key}"
 USER="${VM_USER:-ubuntu}"
-HOST="${VM_HOST:-159.54.160.137}"
+HOST="${VM_HOST:-163.192.56.9}"
 
 if [ ! -f "$KEY" ]; then
   # Fall back: maybe the key is at the repo root.
