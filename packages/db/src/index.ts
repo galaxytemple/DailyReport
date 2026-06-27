@@ -92,3 +92,10 @@ export interface ArchivedSummary {
   sentiment: number | null;
   createdAt: Date;
 }
+
+export interface Passage {
+  id: number;
+  title: string;
+  body: string;
+  createdAt: Date;
+}
