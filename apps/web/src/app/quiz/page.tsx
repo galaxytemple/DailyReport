@@ -12,7 +12,7 @@ function currentYmKst(): string {
   return `${kst.getUTCFullYear()}-${String(kst.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
-const YM_RE = /^\d{4}-\d{2}$/;
+const YM_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 export default async function QuizPage({
   searchParams,

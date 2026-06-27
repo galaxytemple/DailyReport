@@ -7,6 +7,7 @@ export function QuizClient({ initial }: { initial: QuizQuestion | null }) {
   const [question, setQuestion] = useState<QuizQuestion | null>(initial);
   const [revealed, setRevealed] = useState(false);
   const [selected, setSelected] = useState<number | null>(null);
+  const [recordError, setRecordError] = useState(false);
   const [pending, startTransition] = useTransition();
 
   if (!question) {
@@ -24,7 +25,12 @@ export function QuizClient({ initial }: { initial: QuizQuestion | null }) {
     setSelected(i);
     if (question && i === question.answerIndex) {
       startTransition(async () => {
-        await recordCorrect();
+        try {
+          setRecordError(false);
+          await recordCorrect();
+        } catch {
+          setRecordError(true);
+        }
       });
     }
   }
@@ -35,6 +41,7 @@ export function QuizClient({ initial }: { initial: QuizQuestion | null }) {
       setQuestion(next);
       setRevealed(false);
       setSelected(null);
+      setRecordError(false);
     });
   }
 
@@ -99,6 +106,9 @@ export function QuizClient({ initial }: { initial: QuizQuestion | null }) {
           <p className={`text-sm font-medium ${selected === question.answerIndex ? 'text-green-700' : 'text-red-600'}`}>
             {selected === question.answerIndex ? '정답입니다!' : '틀렸습니다.'}
           </p>
+          {selected === question.answerIndex && recordError && (
+            <p className="text-xs text-amber-600">기록에 실패했습니다. 다음 문제로 넘어가도 됩니다.</p>
+          )}
           <button
             onClick={onNext}
             disabled={pending}
