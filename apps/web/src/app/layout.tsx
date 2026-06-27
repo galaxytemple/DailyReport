@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { auth } from '@/auth';
+import { isQuizOwner } from '@/lib/quiz-owner';
 import './globals.css';
 
 export const metadata: Metadata = { title: 'Daily Report' };
@@ -17,6 +18,7 @@ function NavLink({ href, label }: { href: string; label: string }) {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
+  const quizOwner = isQuizOwner(session);
   return (
     <html lang="en">
       <body>
@@ -29,6 +31,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <NavLink href="/topics" label="Topics" />
                 <NavLink href="/dashboard" label="Dashboard" />
                 <NavLink href="/reports" label="Reports" />
+                {quizOwner && <NavLink href="/quiz" label="Quiz" />}
+                {quizOwner && <NavLink href="/quiz-settings" label="Quiz Setting" />}
               </nav>
             </div>
           </header>
