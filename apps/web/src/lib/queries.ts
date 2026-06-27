@@ -1,5 +1,5 @@
 import { initPool, getConnection, oracledb } from '@daily/db';
-import type { Theme, Topic } from '@daily/db';
+import type { Theme, Topic, Passage } from '@daily/db';
 
 export async function getTopicKeywordsByTheme(): Promise<Map<number, string[]>> {
   await initPool();
@@ -142,6 +142,58 @@ export async function getReportContent(id: number): Promise<{ theme: string | nu
     const row = result.rows?.[0];
     if (!row) return null;
     return { theme: row[0], content: row[1] };
+  } finally {
+    await conn.close();
+  }
+}
+
+export async function getPassages(): Promise<Passage[]> {
+  await initPool();
+  const conn = await getConnection();
+  try {
+    const result = await conn.execute<[number, string, string, Date]>(
+      `SELECT id, title, body, created_at FROM quiz_passages ORDER BY id DESC`,
+      [],
+      { outFormat: oracledb.OUT_FORMAT_ARRAY },
+    );
+    return (result.rows ?? []).map(([id, title, body, createdAt]) => ({
+      id, title, body, createdAt,
+    }));
+  } finally {
+    await conn.close();
+  }
+}
+
+export async function getQuizConfig(): Promise<{ blankPct: number }> {
+  await initPool();
+  const conn = await getConnection();
+  try {
+    const result = await conn.execute<[number]>(
+      `SELECT blank_pct FROM quiz_config WHERE id = 1`,
+      [],
+      { outFormat: oracledb.OUT_FORMAT_ARRAY },
+    );
+    return { blankPct: result.rows?.[0]?.[0] ?? 50 };
+  } finally {
+    await conn.close();
+  }
+}
+
+export async function getMonthlyStats(ym: string): Promise<Map<number, number>> {
+  await initPool();
+  const conn = await getConnection();
+  try {
+    const result = await conn.execute<[number, number]>(
+      `SELECT TO_NUMBER(TO_CHAR(day, 'DD')) AS d, correct_count
+       FROM quiz_daily
+       WHERE day >= TO_DATE(:ym || '-01', 'YYYY-MM-DD')
+         AND day <  ADD_MONTHS(TO_DATE(:ym || '-01', 'YYYY-MM-DD'), 1)`,
+      { ym },
+      { outFormat: oracledb.OUT_FORMAT_ARRAY },
+    );
+    const out = new Map<number, number>();
+    for (const [d, count] of result.rows ?? []) out.set(d, count);
+    return out;
   } finally {
     await conn.close();
   }
