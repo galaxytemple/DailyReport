@@ -34,6 +34,7 @@ export default async function QuizSettingsPage() {
               name="blankPct"
               min={0}
               max={100}
+              step={1}
               defaultValue={config.blankPct}
               className="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm"
             />

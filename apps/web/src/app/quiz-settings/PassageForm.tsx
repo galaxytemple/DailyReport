@@ -50,8 +50,8 @@ export function PassageForm({
             // eslint-disable-next-line react/no-array-index-key
             <li key={i} className="break-words">{s}</li>
           ))}
-          {sentences.length === 0 && <li className="list-none text-gray-400">Nothing yet.</li>}
         </ol>
+        {sentences.length === 0 && <p className="text-sm text-gray-400">Nothing yet.</p>}
       </div>
       <button
         type="submit"
