@@ -68,7 +68,11 @@ export async function deletePassage(id: number): Promise<void> {
 
 export async function updateQuizConfig(formData: FormData): Promise<void> {
   await assertQuizOwner();
-  const blankPct = Number(formData.get('blankPct'));
+  const raw = formData.get('blankPct');
+  if (raw === null || String(raw).trim() === '') {
+    throw new Error('Ratio is required');
+  }
+  const blankPct = Number(raw);
   if (!Number.isInteger(blankPct) || blankPct < 0 || blankPct > 100) {
     throw new Error('Ratio must be an integer between 0 and 100');
   }
