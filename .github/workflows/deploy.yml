@@ -73,6 +73,7 @@ jobs:
           AUTH_TRUST_HOST=true
           AUTH_URL=https://${{ secrets.PUBLIC_HOST }}
           ADMIN_EMAILS=${{ secrets.ADMIN_EMAILS }}
+          QUIZ_OWNER_EMAIL=${{ secrets.QUIZ_OWNER_EMAIL }}
           EOF
 
       - name: Sync to VM
