@@ -6,10 +6,18 @@ import { Calendar } from './Calendar';
 
 export const dynamic = 'force-dynamic';
 
-// Current month in KST (+09:00), independent of the server's wall clock.
-function currentYmKst(): string {
-  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
-  return `${kst.getUTCFullYear()}-${String(kst.getUTCMonth() + 1).padStart(2, '0')}`;
+// Current month in America/Los_Angeles, matching how correct answers are
+// bucketed by day. Intl handles PST/PDT, independent of the server's clock.
+function currentYmLa(): string {
+  // en-CA formats as YYYY-MM-DD; slice off the day.
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+    .format(new Date())
+    .slice(0, 7);
 }
 
 const YM_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -23,7 +31,7 @@ export default async function QuizPage({
   if (!isQuizOwner(session)) notFound();
 
   const { ym: ymParam } = await searchParams;
-  const ym = ymParam && YM_RE.test(ymParam) ? ymParam : currentYmKst();
+  const ym = ymParam && YM_RE.test(ymParam) ? ymParam : currentYmLa();
   const stats = await getMonthlyStats(ym);
 
   return (

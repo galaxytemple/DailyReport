@@ -4,6 +4,11 @@ import { assertQuizOwner } from '@/lib/quiz-owner';
 import { getQuizConfig } from '@/lib/queries';
 import { splitSentences, buildQuiz, MIN_SENTENCES, type QuizQuestion } from '@/lib/quiz';
 
+// Day boundary for the correct-answer calendar. SYSTIMESTAMP is the DB server
+// clock (UTC) and ignores the session time zone, so we convert explicitly here.
+// 'AT TIME ZONE' handles PST/PDT automatically.
+const QUIZ_TZ = 'America/Los_Angeles';
+
 export async function fetchNextQuiz(): Promise<QuizQuestion | null> {
   await assertQuizOwner();
   const { blankPct } = await getQuizConfig();
@@ -38,11 +43,11 @@ export async function recordCorrect(): Promise<void> {
   try {
     await conn.execute(
       `MERGE INTO quiz_daily d
-       USING (SELECT TRUNC(SYSTIMESTAMP) AS day FROM dual) s
+       USING (SELECT TRUNC(SYSTIMESTAMP AT TIME ZONE :tz) AS day FROM dual) s
        ON (d.day = s.day)
        WHEN MATCHED THEN UPDATE SET d.correct_count = d.correct_count + 1
        WHEN NOT MATCHED THEN INSERT (day, correct_count) VALUES (s.day, 1)`,
-      [],
+      { tz: QUIZ_TZ },
       { autoCommit: true },
     );
   } finally {
