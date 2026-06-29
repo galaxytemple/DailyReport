@@ -41,13 +41,15 @@ export async function recordCorrect(): Promise<void> {
   await initPool();
   const conn = await getConnection();
   try {
+    // QUIZ_TZ is a code constant, not user input. Oracle rejects a bind
+    // variable in the AT TIME ZONE clause (ORA-00907), so inline it.
     await conn.execute(
       `MERGE INTO quiz_daily d
-       USING (SELECT TRUNC(SYSTIMESTAMP AT TIME ZONE :tz) AS day FROM dual) s
+       USING (SELECT TRUNC(SYSTIMESTAMP AT TIME ZONE '${QUIZ_TZ}') AS day FROM dual) s
        ON (d.day = s.day)
        WHEN MATCHED THEN UPDATE SET d.correct_count = d.correct_count + 1
        WHEN NOT MATCHED THEN INSERT (day, correct_count) VALUES (s.day, 1)`,
-      { tz: QUIZ_TZ },
+      [],
       { autoCommit: true },
     );
   } finally {
