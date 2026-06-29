@@ -60,6 +60,9 @@ jobs:
           OLLAMA_URL=http://host.docker.internal:11434
 
           ORACLE_SMTP_HOST=${{ secrets.ORACLE_SMTP_HOST }}
+          # OCI region alias serves a cert with CN smtp.email.<region>.oci.oraclecloud.com,
+          # so pin SNI/cert verification to the canonical name (public, not a secret).
+          ORACLE_SMTP_TLS_SERVERNAME=smtp.email.us-sanjose-1.oci.oraclecloud.com
           ORACLE_SMTP_PORT=587
           ORACLE_SMTP_USER=${{ secrets.ORACLE_SMTP_USER }}
           ORACLE_SMTP_PASS=${{ secrets.ORACLE_SMTP_PASS }}
